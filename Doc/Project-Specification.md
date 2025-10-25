@@ -92,6 +92,9 @@ func quick_insert_node(node_type: String, offset: Vector2, connection = null) ->
 func update_node(node_id: int, name: String = "", data: Dictionary = {}, notes: String = "", is_auto_update: bool = false) -> void:
 func remove_node(node_id: int, forced: bool = false) -> bool:
 
+# Update node properties
+func update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1) -> void
+
 # Scene operations
 func create_new_scene(is_macro: bool = false) -> void
 func update_scene(scene_id: int, name: String = "", entry: int = -1, macro: bool = null, notes: String = "") -> void:
