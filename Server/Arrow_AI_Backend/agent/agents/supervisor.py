@@ -4,6 +4,7 @@ from Arrow_AI_Backend.agent.agents.decider import replanner, Response
 from Arrow_AI_Backend.agent.states import PlanExecute
 from langgraph.graph import StateGraph, START, END
 from typing import AsyncGenerator
+from Arrow_AI_Backend.manager import manager
 
 async def execute_step(state: PlanExecute):
     plan = state["plan"]
@@ -14,6 +15,7 @@ async def execute_step(state: PlanExecute):
     agent_response = await agent_executor.ainvoke(
         {"messages": [("user", task_formatted)]}
     )
+    manager.send(state.session_id, {"type": "message_stream", "data": {"messageId": state.message_id, "contentChunk": agent_response}})
     return {
         "past_steps": [(task, agent_response["messages"][-1].content)],
     }
@@ -21,12 +23,14 @@ async def execute_step(state: PlanExecute):
 
 async def plan_step(state: PlanExecute):
     plan = await planner.ainvoke({"messages": [("user", state["input"])]})
+    manager.send(state.session_id, {"type": "message_stream", "data": {"messageId": state.message_id, "contentChunk": plan}})
     return {"plan": plan.steps}
 
 
 async def replan_step(state: PlanExecute):
     output = await replanner.ainvoke(state)
     if isinstance(output.action, Response):
+        manager.send(state.session_id, {"type": "message_stream", "data": {"messageId": state.message_id, "contentChunk": output.action}})
         return {"response": output.action.response}
     else:
         return {"plan": output.action.steps}

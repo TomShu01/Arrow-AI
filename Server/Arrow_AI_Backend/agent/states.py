@@ -17,6 +17,8 @@ class Plan(BaseModel):
 
 
 class PlanExecute(TypedDict):
+    session_id: str
+    message_id: str
     input: str
     plan: List[str]
     past_steps: Annotated[List[Tuple], operator.add]

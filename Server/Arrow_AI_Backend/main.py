@@ -34,8 +34,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.send(session_id, {"type": "message_ack", "data": {"messageId": message_id}})
 
                 try:
-                    async for chunk in supervisor_agent.invoke(msg_data.text):
-                        await manager.send(session_id, {"type": "message_stream", "data": {"messageId": message_id, "contentChunk": chunk}})
+                    supervisor_agent.invoke({
+                        "session_id": session_id,
+                        "message_id": message_id,
+                        "input": msg_data.text
+                    })
 
                     await manager.send(session_id, {
                         "type": "message_complete",

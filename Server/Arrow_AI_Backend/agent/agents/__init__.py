@@ -1,7 +1,7 @@
 """Package initialization for the agents."""
 
-from .supervisor import generate_agent_stream
+from .supervisor import supervisor_agent
 
 __all__ = [
-    "generate_agent_stream"
+    "supervisor_agent"
 ]
