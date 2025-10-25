@@ -1878,6 +1878,7 @@ layout_mode = 2
 text = "Back"
 
 [node name="Context" type="PopupPanel" parent="FloatingTools/Control"]
+oversampling_override = 1.0
 position = Vector2i(200, 200)
 size = Vector2i(256, 256)
 script = ExtResource("22_qw7b1")
@@ -2086,6 +2087,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+scroll_offset = Vector2(0, -59)
 snapping_distance = 5
 right_disconnects = true
 zoom_min = 0.1
