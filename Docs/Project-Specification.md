@@ -32,7 +32,10 @@ Client SIde:
 - Wait for an END message. Use state machine of ServerEvents.START and ServerEvents.END to determine when to start and disable chat.
 - Client must also send information back to the server if applying an operation failed (exception occurred). Agent uses exception information to try again.
 - Sync file with server before everytime the next message is sent on the chat.
-- Arrow project file is sent to server using an HTTP POST request when projected is opened. Every time project is saved, the same function is called to sync project with server. Source-of-truth remains on client-side.
+- Arrow project file is sent to server using the websocket when projected is opened. Every time project is saved, the same function is called to sync project with server. Source-of-truth remains on client-side.
+- Send local chat history on client side to server on each message.
+- Add button to clear local chat history.
+- Add button after message is sent to server to stop processing on server side (stop signal). This stop signal forces local rollback to before current chat began.
 
 Here is central mind below.
 
@@ -116,3 +119,86 @@ func node_connection_replacement(conversation_table: Dictionary, remake_lost_con
 # Entry points
 func update_scene_entry(node_id: int) -> int
 func update_project_entry(node_id: int) -> int
+
+# JSON Specifications
+1. File Sync Message
+
+```json
+{
+  "type": "file_sync",
+  "data": {
+    "project_id": 1,
+    "arrow_content": "<complete .arrow file content as string>",
+    "timestamp": 1698765432
+  }
+}
+```
+
+
+2. Design doc sync [Later]
+
+```json
+{
+  "type": "design_doc_sync",
+  "data": {
+    "project_id": 1,
+    "file_content": "base 64 pdf",
+    "file_name": "",
+    "timestamp": 1698765432
+  }
+}
+```
+
+3. User Message
+
+```json
+{
+  "type": "user_message",
+  "data": {
+    "message": "Add a dialog node where the protagonist asks about the ancient artifact",
+    "history": [
+      {"message": "x1", "output": "y1"},
+      {"message": "x2", "output": "y2"},
+      ],
+    "selected_node_ids": [12, 15],
+    "current_scene_id": 5,
+    "current_project_id": 1,
+  }
+}
+```
+
+4. Function Result
+
+```json
+{
+  "type": "function_result",
+  "data": {
+    "request_id": "req_12345",
+    "success": true,
+    "result": "Node created successfully",
+    "error": ""
+  }
+}
+```
+
+Or on error:
+
+```json
+{
+  "type": "function_result",
+  "data": {
+    "request_id": "req_12345",
+    "success": false,
+    "result": "",
+    "error": "Node type 'invalid_type' does not exist"
+  }
+}
+```
+
+5. Stop Signal - Tell server to stop processing current request. 
+
+```json
+{
+  "type": "stop"
+}
+```
