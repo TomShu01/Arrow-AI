@@ -1,12 +1,11 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from uuid import uuid4
 import asyncio
-from schemas import WSMessage, MessageStartData, PingData
-from manager import ConnectionManager
-from llm import generate_llm_stream
+from Arrow_AI_Backend.schemas import WSMessage, MessageStartData, PingData
+from Arrow_AI_Backend.manager import manager
+from Arrow_AI_Backend.agent.agents.supervisor import supervisor_agent
 
 app = FastAPI()
-manager = ConnectionManager()
 
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
@@ -35,7 +34,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.send(session_id, {"type": "message_ack", "data": {"messageId": message_id}})
 
                 try:
-                    async for chunk in generate_llm_stream(msg_data.text):
+                    async for chunk in supervisor_agent.invoke(msg_data.text):
                         await manager.send(session_id, {"type": "message_stream", "data": {"messageId": message_id, "contentChunk": chunk}})
 
                     await manager.send(session_id, {
@@ -43,6 +42,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "data": {"messageId": message_id, "finalContent": "[DONE]", "usage": {"tokens": 42}}
                     })
                 except Exception as e:
+                    print(e)
                     await manager.send(session_id, {"type": "message_error", "data": {"messageId": message_id, "error": str(e)}})
 
             elif event.type == "message_cancel":

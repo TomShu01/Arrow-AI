@@ -18,3 +18,5 @@ class ConnectionManager:
         ws = self.active_connections.get(session_id)
         if ws:
             await ws.send_json(message)
+
+manager = ConnectionManager()
