@@ -121,6 +121,7 @@ func update_scene_entry(node_id: int) -> int
 func update_project_entry(node_id: int) -> int
 
 # JSON Specifications
+## Client -> Server
 1. File Sync Message
 
 ```json
@@ -202,3 +203,6 @@ Or on error:
   "type": "stop"
 }
 ```
+
+## Server -> Client
+These specifications must be auto-generated for each function, but not implemented yet.
