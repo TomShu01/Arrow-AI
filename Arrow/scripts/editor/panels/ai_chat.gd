@@ -1,0 +1,401 @@
+# Arrow-AI
+# Game Narrative Design Tool w/ AI
+# Kushagra Sethi
+
+# AI Chat Panel
+# Collapsible side panel for AI agent chat interface
+# Displays chat messages, handles user input, and manages connection status
+
+extends Control
+
+signal request_mind()
+
+@onready var TheTree = get_tree()
+@onready var Main = TheTree.get_root().get_child(0)
+
+# UI Components
+@onready var ChatScroll = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Chat/Scroll
+@onready var ChatContainer = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Chat/Scroll/Messages
+@onready var InputField = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/Field
+@onready var SendButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/Send
+@onready var ConnectionStatus = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Status
+@onready var ConnectButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Connect
+@onready var StopButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Stop
+@onready var ClearButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Clear
+@onready var CloseButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Close
+
+# Chat settings
+var _AUTOSCROLL: bool = true
+var _chat_history: Array = []  # Stores chat messages for context
+var _current_ai_message: String = ""  # Accumulator for streaming AI responses
+
+# Color constants
+const USER_MESSAGE_COLOR = Color("0fcbf4")  # Cyan - from Settings.PEACE_COLOR
+const AI_MESSAGE_COLOR = Color.GREEN_YELLOW  # From Settings.INFO_COLOR
+const ERROR_MESSAGE_COLOR = Color("ff0bb1")  # Red - from Settings.WARNING_COLOR
+const SYSTEM_MESSAGE_COLOR = Color.YELLOW  # From Settings.CAUTION_COLOR
+
+# Message display properties
+const CHAT_MESSAGE_PROPERTIES = {
+	"size_flags_vertical": Control.SizeFlags.SIZE_EXPAND_FILL,
+	"horizontal_alignment": HorizontalAlignment.HORIZONTAL_ALIGNMENT_LEFT,
+	"autowrap_mode": TextServer.AutowrapMode.AUTOWRAP_WORD_SMART,
+}
+
+func _ready() -> void:
+	_register_connections()
+	_initialize_panel()
+	pass
+
+func _register_connections() -> void:
+	# Button connections
+	SendButton.pressed.connect(self._on_send_button_pressed, CONNECT_DEFERRED)
+	ClearButton.pressed.connect(self._on_clear_button_pressed, CONNECT_DEFERRED)
+	CloseButton.pressed.connect(self._on_close_button_pressed, CONNECT_DEFERRED)
+	ConnectButton.pressed.connect(self._on_connect_button_pressed, CONNECT_DEFERRED)
+	StopButton.pressed.connect(self._on_stop_button_pressed, CONNECT_DEFERRED)
+	
+	# Input field connections
+	InputField.text_submitted.connect(self._on_input_text_submitted, CONNECT_DEFERRED)
+	
+	# AI WebSocket Adapter signals (if available in Main)
+	if Main.has_node("AIWebSocketAdapter"):
+		var adapter = Main.get_node("AIWebSocketAdapter")
+		adapter.connection_state_changed.connect(self._on_connection_state_changed, CONNECT_DEFERRED)
+		adapter.text_chunk_received.connect(self._on_text_chunk_received, CONNECT_DEFERRED)
+		adapter.connection_error.connect(self._on_connection_error, CONNECT_DEFERRED)
+	
+	# AI State Manager signals (if available as singleton)
+	if Main.has_node("AIStateManager"):
+		var state_mgr = Main.get_node("AIStateManager")
+		state_mgr.state_changed.connect(self._on_ai_state_changed, CONNECT_DEFERRED)
+	
+	pass
+
+func _initialize_panel() -> void:
+	# Set initial button states
+	_update_ui_from_state()
+	
+	# Display welcome message
+	append_system_message("AI Agent Ready. Connect to server to begin.")
+	pass
+
+# ============================================================================
+# UI Update Methods
+# ============================================================================
+
+func _update_ui_from_state() -> void:
+	"""Update UI elements based on connection and AI state"""
+	var is_server_connected = _is_websocket_connected()
+	var ai_state = _get_ai_state()
+	var is_busy = (ai_state != null and ai_state != 0)  # Not IDLE
+	
+	# Update connection status indicator
+	if is_server_connected:
+		ConnectionStatus.set_text("● Connected")
+		ConnectionStatus.add_theme_color_override("font_color", Color.GREEN)
+	else:
+		ConnectionStatus.set_text("○ Disconnected")
+		ConnectionStatus.add_theme_color_override("font_color", Color.GRAY)
+	
+	# Update button states
+	ConnectButton.set_disabled(is_server_connected)
+	ConnectButton.set_text("Disconnect" if is_server_connected else "Connect")
+	
+	StopButton.set_visible(is_busy)
+	StopButton.set_disabled(not is_busy)
+	
+	SendButton.set_disabled(not is_server_connected or is_busy)
+	InputField.set_editable(is_server_connected and not is_busy)
+	
+	pass
+
+func _update_scroll_to_max(forced: bool = false) -> void:
+	"""Scroll chat to bottom"""
+	if _AUTOSCROLL or forced:
+		await TheTree.process_frame
+		var v_max = ChatScroll.get_v_scroll_bar().get_max()
+		ChatScroll.set_v_scroll(v_max)
+		ChatScroll.queue_redraw()
+	pass
+
+# ============================================================================
+# Chat Message Display
+# ============================================================================
+
+func append_user_message(message: String) -> void:
+	"""Display user message in chat"""
+	_add_message_to_chat("User", message, USER_MESSAGE_COLOR)
+	_chat_history.append({"role": "user", "content": message})
+	pass
+
+func append_ai_message(message: String) -> void:
+	"""Display complete AI message in chat"""
+	_add_message_to_chat("AI", message, AI_MESSAGE_COLOR)
+	_chat_history.append({"role": "assistant", "content": message})
+	pass
+
+func append_system_message(message: String) -> void:
+	"""Display system message in chat"""
+	_add_message_to_chat("System", message, SYSTEM_MESSAGE_COLOR)
+	pass
+
+func append_error_message(message: String) -> void:
+	"""Display error message in chat"""
+	_add_message_to_chat("Error", message, ERROR_MESSAGE_COLOR)
+	pass
+
+func _add_message_to_chat(sender: String, message: String, color: Color) -> void:
+	"""Internal method to add formatted message to chat display"""
+	# Create message container
+	var message_box = VBoxContainer.new()
+	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
+	
+	# Create sender label
+	var sender_label = Label.new()
+	sender_label.set_text(sender + ":")
+	sender_label.add_theme_color_override("font_color", color)
+	sender_label.add_theme_font_size_override("font_size", 14)
+	
+	# Create message label
+	var message_label = Label.new()
+	message_label.set_text(message)
+	for property in CHAT_MESSAGE_PROPERTIES:
+		message_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
+	message_label.add_theme_color_override("font_color", Color.WHITE)
+	
+	# Add to container
+	message_box.add_child(sender_label)
+	message_box.add_child(message_label)
+	
+	# Add spacer
+	var spacer = Control.new()
+	spacer.set_custom_minimum_size(Vector2(0, 10))
+	message_box.add_child(spacer)
+	
+	# Add to chat
+	ChatContainer.call_deferred("add_child", message_box)
+	self.call_deferred("_update_scroll_to_max")
+	pass
+
+func start_streaming_ai_message() -> void:
+	"""Begin accumulating a new streaming AI message"""
+	_current_ai_message = ""
+	pass
+
+func append_ai_text_chunk(text: String) -> void:
+	"""Add text chunk to current streaming AI message"""
+	_current_ai_message += text
+	# TODO: Update the last message in chat display with accumulated text
+	# For now, we'll just accumulate and display when complete
+	pass
+
+func finish_streaming_ai_message() -> void:
+	"""Complete the streaming AI message and display it"""
+	if _current_ai_message.length() > 0:
+		append_ai_message(_current_ai_message)
+		_current_ai_message = ""
+	pass
+
+func clear_chat() -> void:
+	"""Clear all chat messages"""
+	for child in ChatContainer.get_children():
+		child.queue_free()
+	_chat_history.clear()
+	_current_ai_message = ""
+	append_system_message("Chat cleared.")
+	pass
+
+# ============================================================================
+# Button Handlers
+# ============================================================================
+
+func _on_send_button_pressed() -> void:
+	"""Handle send button click"""
+	_send_message()
+	pass
+
+func _on_input_text_submitted(_text: String) -> void:
+	"""Handle Enter key in input field"""
+	_send_message()
+	pass
+
+func _send_message() -> void:
+	"""Send user message to AI server"""
+	var message = InputField.get_text().strip_edges()
+	
+	if message.length() == 0:
+		return
+	
+	# Clear input field
+	InputField.set_text("")
+	
+	# Display user message
+	append_user_message(message)
+	
+	# Get context information
+	var selected_nodes = _get_selected_node_ids()
+	var current_scene_id = _get_current_scene_id()
+	var current_project_id = _get_current_project_id()
+	
+	# Send to server via WebSocket adapter
+	if Main.has_node("AIWebSocketAdapter"):
+		var adapter = Main.get_node("AIWebSocketAdapter")
+		adapter.send_user_message(message, _chat_history, selected_nodes, current_scene_id, current_project_id)
+		start_streaming_ai_message()
+	else:
+		append_error_message("AIWebSocketAdapter not found!")
+	
+	pass
+
+func _on_clear_button_pressed() -> void:
+	"""Handle clear button click"""
+	clear_chat()
+	pass
+
+func _on_close_button_pressed() -> void:
+	"""Handle close button click"""
+	self.request_mind.emit("toggle_ai_chat_panel")
+	pass
+
+func _on_connect_button_pressed() -> void:
+	"""Handle connect/disconnect button click"""
+	if _is_websocket_connected():
+		# Disconnect
+		if Main.has_node("AIWebSocketAdapter"):
+			var adapter = Main.get_node("AIWebSocketAdapter")
+			adapter.disconnect_from_server()
+	else:
+		# Connect using settings from configuration
+		if Main.has_node("AIWebSocketAdapter"):
+			var adapter = Main.get_node("AIWebSocketAdapter")
+			# Get host and port from configuration (defaults if not found)
+			var host = Main.Configs.CONFIRMED.get("ai_websocket_host", "localhost")
+			var port = Main.Configs.CONFIRMED.get("ai_websocket_port", 8000)
+			adapter.connect_to_server(host, port)
+		else:
+			append_error_message("AIWebSocketAdapter not found!")
+	pass
+
+func _on_stop_button_pressed() -> void:
+	"""Handle stop button click - abort current AI operation"""
+	if Main.has_node("AIWebSocketAdapter"):
+		var adapter = Main.get_node("AIWebSocketAdapter")
+		adapter.send_stop_signal()
+		append_system_message("Stopping AI operation...")
+	pass
+
+# ============================================================================
+# Signal Handlers
+# ============================================================================
+
+func _on_connection_state_changed(new_state) -> void:
+	"""Handle WebSocket connection state changes"""
+	_update_ui_from_state()
+	
+	# Display connection state messages
+	if Main.has_node("AIWebSocketAdapter"):
+		var adapter = Main.get_node("AIWebSocketAdapter")
+		var state_string = adapter.get_connection_state_string()
+		
+		match new_state:
+			2:  # CONNECTED
+				append_system_message("Connected to AI server")
+				# Sync project file on connection
+				_sync_project_file()
+			0:  # DISCONNECTED
+				append_system_message("Disconnected from AI server")
+			4:  # ERROR
+				append_error_message("Connection error")
+	pass
+
+func _on_text_chunk_received(text: String) -> void:
+	"""Handle streaming text chunks from AI"""
+	append_ai_text_chunk(text)
+	pass
+
+func _on_connection_error(error_message: String) -> void:
+	"""Handle WebSocket connection errors"""
+	append_error_message("Connection error: " + error_message)
+	pass
+
+func _on_ai_state_changed(_new_state) -> void:
+	"""Handle AI state changes (IDLE/PROCESSING/EXECUTING)"""
+	_update_ui_from_state()
+	
+	# Complete streaming message when returning to IDLE
+	if _new_state == 0:  # IDLE
+		finish_streaming_ai_message()
+	pass
+
+# ============================================================================
+# Helper Methods
+# ============================================================================
+
+func _is_websocket_connected() -> bool:
+	"""Check if WebSocket is connected"""
+	if Main.has_node("AIWebSocketAdapter"):
+		var adapter = Main.get_node("AIWebSocketAdapter")
+		return adapter.is_server_connected()
+	return false
+
+func _get_ai_state():
+	"""Get current AI state"""
+	if Main.has_node("AIStateManager"):
+		var state_mgr = Main.get_node("AIStateManager")
+		return state_mgr.get_current_state()
+	return null
+
+func _get_selected_node_ids() -> Array:
+	"""Get IDs of currently selected nodes on grid"""
+	var selected_ids = []
+	if Main.has_node("Mind"):
+		var mind = Main.get_node("Mind")
+		if mind.has_method("get_selected_nodes"):
+			selected_ids = mind.get_selected_nodes()
+	return selected_ids
+
+func _get_current_scene_id() -> int:
+	"""Get current scene ID"""
+	if Main.has_node("Mind"):
+		var mind = Main.get_node("Mind")
+		if mind.has_method("get_current_scene_id"):
+			return mind.get_current_scene_id()
+	return -1
+
+func _get_current_project_id() -> int:
+	"""Get current project ID"""
+	if Main.has_node("Mind"):
+		var mind = Main.get_node("Mind")
+		if mind.has_method("get_project_id"):
+			return mind.get_project_id()
+	return -1
+
+func _sync_project_file() -> void:
+	"""Sync current project file to AI server"""
+	if not _is_websocket_connected():
+		return
+	
+	if Main.has_node("Mind"):
+		var mind = Main.get_node("Mind")
+		if mind.has_method("get_project_content_json"):
+			var project_content = mind.get_project_content_json()
+			var project_id = _get_current_project_id()
+			
+			if Main.has_node("AIWebSocketAdapter"):
+				var adapter = Main.get_node("AIWebSocketAdapter")
+				adapter.send_file_sync(project_id, project_content)
+				print("[AIChat] Project file synced to server")
+	pass
+
+func _request_mind(req: String, args = null) -> void:
+	"""Relay request to Mind"""
+	self.request_mind.emit(req, args)
+	pass
+
+# ============================================================================
+# Panel Management (Draggable & Resizable)
+# ============================================================================
+
+# Note: Draggable/Resizable helpers are not needed for integrated panels
+# The panel is now part of the main editor layout and managed by HBoxContainer
