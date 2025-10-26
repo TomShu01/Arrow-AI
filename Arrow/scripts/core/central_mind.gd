@@ -53,6 +53,14 @@ class Mind :
 	
 	var NODE_TYPES_LIST
 	
+	# AI Resource Wrappers for convenient command execution
+	var _resource_wrappers: ResourceWrappers = null
+	
+	# AI Components (set by Main after initialization)
+	var AIStateManager = null
+	var AIWebSocketAdapter = null
+	var AICommandDispatcher = null
+	
 	# the active project (in-memory)
 	var _PROJECT:Dictionary = {}
 	var _CURRENT_OPEN_SCENE_ID:int = -1
@@ -95,6 +103,8 @@ class Mind :
 		Notifier = Main.get_node(NOTIFIER)
 		Authors = Main.get_node(AUTHORS)
 		AIChat = Main.get_node(AI_CHAT)
+		# Initialize AI Resource Wrappers
+		_resource_wrappers = ResourceWrappers.new(self)
 		# then ...
 		register_connections()
 		load_node_types()
@@ -491,6 +501,72 @@ class Mind :
 			"INDEX": -1,
 		}
 		pass
+	
+	# ============================================================================
+	# AI Operation Management
+	# ============================================================================
+	
+	func on_ai_operation_start(request_id: String) -> void:
+		"""
+		Handle AI operation start - save checkpoint for potential rollback
+		Called when transitioning from IDLE to PROCESSING state
+		"""
+		if not AIStateManager:
+			printerr("[Mind] Cannot start AI operation: AIStateManager not initialized")
+			return
+		
+		# Save checkpoint at current history index
+		var history_index = _HISTORY.INDEX
+		AIStateManager.start_operation(request_id, history_index)
+		print("[Mind] AI operation started (", request_id, ") - Checkpoint saved at history index ", history_index)
+		pass
+	
+	func on_ai_operation_end() -> void:
+		"""
+		Handle AI operation end - return to IDLE state
+		Called when AI completes all operations successfully
+		"""
+		if not AIStateManager:
+			printerr("[Mind] Cannot end AI operation: AIStateManager not initialized")
+			return
+		
+		AIStateManager.end_operation()
+		print("[Mind] AI operation ended - State returned to IDLE")
+		pass
+	
+	func on_ai_operation_stopped() -> void:
+		"""
+		Handle AI operation stop - rollback to saved checkpoint
+		Called when user manually stops AI operation or on critical error
+		"""
+		if not AIStateManager:
+			printerr("[Mind] Cannot stop AI operation: AIStateManager not initialized")
+			return
+		
+		var checkpoint_index = AIStateManager.get_saved_checkpoint_index()
+		if checkpoint_index >= 0 and checkpoint_index < _HISTORY.MEMORY.size():
+			# Rollback to the saved checkpoint by rotating history
+			var steps_back = _HISTORY.INDEX - checkpoint_index
+			if steps_back > 0:
+				# Use history_rotate to go back to checkpoint
+				for i in range(steps_back):
+					history_rotate(-1)  # Rotate backwards one step at a time
+				print("[Mind] Rolled back to checkpoint index ", checkpoint_index, " (", steps_back, " steps)")
+			elif steps_back < 0:
+				printerr("[Mind] Warning: Current index is before checkpoint (", _HISTORY.INDEX, " < ", checkpoint_index, ")")
+			else:
+				print("[Mind] Already at checkpoint index ", checkpoint_index)
+			
+			# Clear the checkpoint after rollback
+			AIStateManager.clear_checkpoint()
+		else:
+			if checkpoint_index < 0:
+				print("[Mind] No checkpoint to rollback to")
+			else:
+				printerr("[Mind] Invalid checkpoint index: ", checkpoint_index, " (history size: ", _HISTORY.MEMORY.size(), ")")
+		pass
+	
+	# ============================================================================
 	
 	func get_current_view_state() -> Array:
 		var current = Helpers.Utils.vector2_to_array( Grid.get_scroll_offset() )
@@ -2738,3 +2814,71 @@ class Mind :
 		else:
 			handled = false
 		return handled
+	
+	# ============================================================================
+	# AI COMMAND WRAPPER METHODS
+	# ============================================================================
+	# These methods provide convenient wrappers for AI command execution
+	# They delegate to the ResourceWrappers instance
+	
+	# Wrapper for updating node properties (for AI dispatcher)
+	func update_node(node_id: int, name: String = "", data: Dictionary = {}, notes: String = "", is_auto_update: bool = false) -> void:
+		if _resource_wrappers:
+			_resource_wrappers.update_node(node_id, name, data, notes, is_auto_update)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot update node")
+	
+	# Wrapper for updating variable properties (for AI dispatcher)
+	func update_variable(variable_id: int, name: String = "", type: String = "", initial_value = null, notes: String = "") -> void:
+		if _resource_wrappers:
+			_resource_wrappers.update_variable(variable_id, name, type, initial_value, notes)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot update variable")
+	
+	# Wrapper for updating character properties (for AI dispatcher)
+	func update_character(character_id: int, name: String = "", color: String = "", tags: Dictionary = {}, notes: String = "") -> void:
+		if _resource_wrappers:
+			_resource_wrappers.update_character(character_id, name, color, tags, notes)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot update character")
+	
+	# Wrapper for updating scene properties (for AI dispatcher)
+	func update_scene(scene_id: int, name: String = "", entry: int = -1, macro = null, notes: String = "") -> void:
+		if _resource_wrappers:
+			var update_macro = (macro != null)
+			var macro_value = (macro if macro is bool else false)
+			_resource_wrappers.update_scene(scene_id, name, entry, macro_value, notes, update_macro)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot update scene")
+	
+	# Wrapper for removing node (for AI dispatcher)
+	func remove_node(node_id: int, forced: bool = false) -> bool:
+		if _resource_wrappers:
+			return _resource_wrappers.remove_node(node_id, forced)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot remove node")
+			return false
+	
+	# Wrapper for removing variable (for AI dispatcher)
+	func remove_variable(variable_id: int, forced: bool = false) -> bool:
+		if _resource_wrappers:
+			return _resource_wrappers.remove_variable(variable_id, forced)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot remove variable")
+			return false
+	
+	# Wrapper for removing character (for AI dispatcher)
+	func remove_character(character_id: int, forced: bool = false) -> bool:
+		if _resource_wrappers:
+			return _resource_wrappers.remove_character(character_id, forced)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot remove character")
+			return false
+	
+	# Wrapper for removing scene (for AI dispatcher)
+	func remove_scene(scene_id: int, forced: bool = false) -> bool:
+		if _resource_wrappers:
+			return _resource_wrappers.remove_scene(scene_id, forced)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot remove scene")
+			return false
