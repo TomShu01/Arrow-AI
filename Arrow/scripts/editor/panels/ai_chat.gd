@@ -442,9 +442,13 @@ func _on_send_button_pressed() -> void:
 func _on_input_field_gui_input(event: InputEvent) -> void:
 	"""Handle keyboard shortcuts in input field"""
 	if event is InputEventKey and event.pressed:
-		# Ctrl+Enter or Shift+Enter to send message
+		# Enter to send message, Shift+Enter for new line
 		if (event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER):
-			if event.ctrl_pressed or event.shift_pressed:
+			if event.shift_pressed:
+				# Allow new line on Shift+Enter (default TextEdit behavior)
+				pass
+			else:
+				# Send message on Enter
 				_send_message()
 				InputField.accept_event()  # Prevent default behavior
 	pass
