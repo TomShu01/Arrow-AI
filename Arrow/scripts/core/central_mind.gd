@@ -17,6 +17,7 @@ const PATH_DIALOG = "/root/Main/Overlays/Control/PathDialog"
 const CONSOLE = "/root/Main/FloatingTools/Control/Console"
 const NOTIFIER = "/root/Main/Overlays/Control/Notification"
 const AUTHORS = "/root/Main/Overlays/Control/Authors"
+const AI_CHAT = "/root/Main/Editor/Centre_Wrapper/AIChat"
 
 # nodes which may send `request_mind` signal
 const TRANSMITTERS = [
@@ -46,6 +47,7 @@ class Mind :
 	var Notifier
 	var Flaker
 	var Authors
+	var AIChat
 	
 	var ProMan # ProjectManager
 	
@@ -92,6 +94,7 @@ class Mind :
 		Console = Main.get_node(CONSOLE)
 		Notifier = Main.get_node(NOTIFIER)
 		Authors = Main.get_node(AUTHORS)
+		AIChat = Main.get_node(AI_CHAT)
 		# then ...
 		register_connections()
 		load_node_types()
@@ -2412,10 +2415,16 @@ class Mind :
 	
 	func activate_project_properties() -> void:
 		Inspector.Tab.Project.call_deferred("open_properties_editor", _PROJECT.title, _PROJECT.meta, is_project_local())
+		# Notify AI chat panel that a valid project is now open
+		if AIChat:
+			AIChat.call_deferred("notify_project_opened")
 		pass
 		
 	func deactivate_project_properties() -> void:
 		Inspector.Tab.Project.call_deferred("reset_to_project_lists")
+		# Notify AI chat panel that project is closed
+		if AIChat:
+			AIChat.call_deferred("notify_project_closed")
 		pass
 	
 	func take_snapshot(custom_version_prefix:String = "") -> void:

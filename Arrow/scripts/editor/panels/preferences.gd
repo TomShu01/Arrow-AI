@@ -24,6 +24,8 @@ const PREF_PANEL_FIELDS = {
 	"app_local_dir_browse": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/WorkDir/Selector/Tools/Select",
 	"app_local_dir_reset_menu": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/WorkDir/Selector/Tools/Reset",
 	"history_size": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/History/Selector/Size/Value",
+	"ai_websocket_url": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketURL/Value",
+	"ai_auto_connect": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/AutoConnect/Value",
 }
 var ACTIONS = {}
 var FIELDS = {}
@@ -33,6 +35,8 @@ const FIELDS_VALUE_PROPERTY = {
 	"language": "selected",
 	"app_local_dir_path": "text",
 	"history_size": "value",
+	"ai_websocket_url": "text",
+	"ai_auto_connect": "button_pressed",
 }
 
 const LANGUAGE_ITEM_TEXT_TEMPLATE = "{name} ({code})"
@@ -100,6 +104,9 @@ func register_connections() -> void:
 	FIELDS.app_local_dir_reset_menu.item_selected_value.connect(self._on_app_local_dir_reset_menu_item_selected, CONNECT_DEFERRED)
 	FIELDS.history_size.get_line_edit().text_changed.connect(self.preprocess_and_emit_modification_signal.bind("history_size"), CONNECT_DEFERRED)
 	FIELDS.history_size.value_changed.connect(self.preprocess_and_emit_modification_signal.bind("history_size"), CONNECT_DEFERRED)
+	# AI Agent fields
+	FIELDS.ai_websocket_url.text_changed.connect(self.preprocess_and_emit_modification_signal.bind("ai_websocket_url"), CONNECT_DEFERRED)
+	FIELDS.ai_auto_connect.toggled.connect(self.preprocess_and_emit_modification_signal.bind("ai_auto_connect"), CONNECT_DEFERRED)
 	pass
 
 func refresh_fields_view(preferences:Dictionary) -> void:
