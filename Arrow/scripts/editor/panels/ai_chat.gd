@@ -28,6 +28,7 @@ extends Control
 var _AUTOSCROLL: bool = true
 var _chat_history: Array = []  # Stores chat messages for context
 var _current_ai_message: String = ""  # Accumulator for streaming AI responses
+var _streaming_message_label: Label = null  # Reference to the currently streaming message label
 
 # Resize functionality
 var _is_resizing: bool = false
@@ -68,17 +69,36 @@ func _register_connections() -> void:
 	# Resize handle connections
 	ResizeHandle.gui_input.connect(self._on_resize_handle_input)
 	
-	# AI WebSocket Adapter signals (if available in Main)
+	# Note: AI WebSocket Adapter and State Manager signals are connected later
+	# via connect_adapter_signals() after the adapter is initialized in Main
+	pass
+
+func connect_adapter_signals() -> void:
+	"""Connect to AI WebSocket Adapter signals - called by Main after adapter initialization"""
+	# AI WebSocket Adapter signals
 	if Main.has_node("AIWebSocketAdapter"):
 		var adapter = Main.get_node("AIWebSocketAdapter")
+		
+		# Test if signals exist
+		print("[AIChat] Adapter has text_chunk_received signal: ", adapter.has_signal("text_chunk_received"))
+		print("[AIChat] Adapter has operation_end_received signal: ", adapter.has_signal("operation_end_received"))
+		
 		adapter.connection_state_changed.connect(self._on_connection_state_changed, CONNECT_DEFERRED)
 		adapter.text_chunk_received.connect(self._on_text_chunk_received, CONNECT_DEFERRED)
 		adapter.connection_error.connect(self._on_connection_error, CONNECT_DEFERRED)
+		adapter.operation_end_received.connect(self._on_operation_end, CONNECT_DEFERRED)
+		print("[AIChat] Connected to AIWebSocketAdapter signals")
+		
+		# Update UI to reflect current state
+		_update_ui_from_state()
+	else:
+		printerr("[AIChat] ERROR: AIWebSocketAdapter not found!")
 	
-	# AI State Manager signals (if available as singleton)
+	# AI State Manager signals
 	if Main.has_node("AIStateManager"):
 		var state_mgr = Main.get_node("AIStateManager")
 		state_mgr.state_changed.connect(self._on_ai_state_changed, CONNECT_DEFERRED)
+		print("[AIChat] Connected to AIStateManager signals")
 	
 	pass
 
@@ -147,7 +167,8 @@ func _update_scroll_to_max(forced: bool = false) -> void:
 
 func append_user_message(message: String) -> void:
 	"""Display user message in chat"""
-	_add_message_to_chat("User", message, USER_MESSAGE_COLOR)
+	# Don't defer - add immediately to maintain message order
+	_add_message_to_chat_immediate("User", message, USER_MESSAGE_COLOR)
 	_chat_history.append({"role": "user", "content": message})
 	pass
 
@@ -168,7 +189,7 @@ func append_error_message(message: String) -> void:
 	pass
 
 func _add_message_to_chat(sender: String, message: String, color: Color) -> void:
-	"""Internal method to add formatted message to chat display"""
+	"""Internal method to add formatted message to chat display (deferred)"""
 	# Create message container
 	var message_box = VBoxContainer.new()
 	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
@@ -200,22 +221,103 @@ func _add_message_to_chat(sender: String, message: String, color: Color) -> void
 	self.call_deferred("_update_scroll_to_max")
 	pass
 
+func _add_message_to_chat_immediate(sender: String, message: String, color: Color) -> void:
+	"""Internal method to add formatted message to chat display (immediate, for correct ordering)"""
+	# Create message container
+	var message_box = VBoxContainer.new()
+	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
+	
+	# Create sender label
+	var sender_label = Label.new()
+	sender_label.set_text(sender + ":")
+	sender_label.add_theme_color_override("font_color", color)
+	sender_label.add_theme_font_size_override("font_size", 14)
+	
+	# Create message label
+	var message_label = Label.new()
+	message_label.set_text(message)
+	for property in CHAT_MESSAGE_PROPERTIES:
+		message_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
+	message_label.add_theme_color_override("font_color", Color.WHITE)
+	
+	# Add to container
+	message_box.add_child(sender_label)
+	message_box.add_child(message_label)
+	
+	# Add spacer
+	var spacer = Control.new()
+	spacer.set_custom_minimum_size(Vector2(0, 10))
+	message_box.add_child(spacer)
+	
+	# Add to chat immediately (not deferred)
+	ChatContainer.add_child(message_box)
+	_update_scroll_to_max()
+	pass
+
 func start_streaming_ai_message() -> void:
-	"""Begin accumulating a new streaming AI message"""
+	"""Begin accumulating a new streaming AI message and create live display"""
+	# Clear any existing streaming message first
+	if _streaming_message_label != null and is_instance_valid(_streaming_message_label):
+		finish_streaming_ai_message()
+	
 	_current_ai_message = ""
+	print("[AIChat] Creating new AI message block")
+	
+	# Create a new message box for streaming AI response
+	var message_box = VBoxContainer.new()
+	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
+	
+	# Create sender label
+	var sender_label = Label.new()
+	sender_label.set_text("AI:")
+	sender_label.add_theme_color_override("font_color", AI_MESSAGE_COLOR)
+	sender_label.add_theme_font_size_override("font_size", 14)
+	
+	# Create message label for streaming content
+	_streaming_message_label = Label.new()
+	_streaming_message_label.set_text("...")
+	for property in CHAT_MESSAGE_PROPERTIES:
+		_streaming_message_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
+	_streaming_message_label.add_theme_color_override("font_color", Color.WHITE)
+	
+	# Add to container
+	message_box.add_child(sender_label)
+	message_box.add_child(_streaming_message_label)
+	
+	# Add spacer
+	var spacer = Control.new()
+	spacer.set_custom_minimum_size(Vector2(0, 10))
+	message_box.add_child(spacer)
+	
+	# Add to chat immediately (not deferred for correct ordering)
+	ChatContainer.add_child(message_box)
+	_update_scroll_to_max()
 	pass
 
 func append_ai_text_chunk(text: String) -> void:
-	"""Add text chunk to current streaming AI message"""
+	"""Add text chunk to current streaming AI message and update display in real-time"""
+	# If no streaming message box exists, create one
+	if _streaming_message_label == null or not is_instance_valid(_streaming_message_label):
+		print("[AIChat] Starting new streaming message")
+		start_streaming_ai_message()
+	
 	_current_ai_message += text
-	# TODO: Update the last message in chat display with accumulated text
-	# For now, we'll just accumulate and display when complete
+	print("[AIChat] Current message length: ", _current_ai_message.length(), " chars")
+	
+	# Update the streaming message label in real-time
+	if _streaming_message_label != null and is_instance_valid(_streaming_message_label):
+		_streaming_message_label.set_text(_current_ai_message)
+		_update_scroll_to_max()
 	pass
 
 func finish_streaming_ai_message() -> void:
-	"""Complete the streaming AI message and display it"""
+	"""Complete the streaming AI message and finalize it"""
 	if _current_ai_message.length() > 0:
-		append_ai_message(_current_ai_message)
+		# Add to chat history
+		_chat_history.append({"role": "assistant", "content": _current_ai_message})
+		
+		# Clear streaming state
+		_streaming_message_label = null
 		_current_ai_message = ""
 	pass
 
@@ -260,11 +362,17 @@ func _send_message() -> void:
 	var current_scene_id = _get_current_scene_id()
 	var current_project_id = _get_current_project_id()
 	
+	print("[AIChat] Sending message: ", message)
+	print("[AIChat] Current scene ID: ", current_scene_id)
+	print("[AIChat] Current project ID: ", current_project_id)
+	
 	# Send to server via WebSocket adapter (with Mind reference for project saving)
 	if Main.has_node("AIWebSocketAdapter"):
 		var adapter = Main.get_node("AIWebSocketAdapter")
+		print("[AIChat] Calling send_user_message on adapter")
 		adapter.send_user_message(message, _chat_history, selected_nodes, current_scene_id, current_project_id, Main.Mind)
 		start_streaming_ai_message()
+		print("[AIChat] Started streaming message display")
 	else:
 		append_error_message("AIWebSocketAdapter not found!")
 	
@@ -299,7 +407,7 @@ func _on_connect_button_pressed() -> void:
 		if Main.has_node("AIWebSocketAdapter"):
 			var adapter = Main.get_node("AIWebSocketAdapter")
 			# Get WebSocket URL from configuration (default if not found)
-			var ws_url = Main.Configs.CONFIRMED.get("ai_websocket_url", "wss://arrow-ai.onrender.com/ws/chat")
+			var ws_url = Main.Configs.CONFIRMED.get("ai_websocket_url", "ws://localhost:8000/ws/chat")
 			adapter.connect_to_server(ws_url)
 		else:
 			append_error_message("AIWebSocketAdapter not found!")
@@ -339,6 +447,7 @@ func _on_connection_state_changed(new_state) -> void:
 
 func _on_text_chunk_received(text: String) -> void:
 	"""Handle streaming text chunks from AI"""
+	print("[AIChat] Received text chunk: ", text)
 	append_ai_text_chunk(text)
 	pass
 
@@ -347,13 +456,15 @@ func _on_connection_error(error_message: String) -> void:
 	append_error_message("Connection error: " + error_message)
 	pass
 
+func _on_operation_end() -> void:
+	"""Handle operation end signal - finalize streaming message"""
+	finish_streaming_ai_message()
+	print("[AIChat] AI operation ended, message finalized")
+	pass
+
 func _on_ai_state_changed(_new_state) -> void:
 	"""Handle AI state changes (IDLE/PROCESSING/EXECUTING)"""
 	_update_ui_from_state()
-	
-	# Complete streaming message when returning to IDLE
-	if _new_state == 0:  # IDLE
-		finish_streaming_ai_message()
 	pass
 
 # ============================================================================
