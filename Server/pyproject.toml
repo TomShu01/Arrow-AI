@@ -1,25 +1,24 @@
-[project]
+[tool.poetry]
 name = "arrow-ai-backend"
 version = "0.1.0"
 description = ""
-authors = [
-    {name = "Your Name",email = "you@example.com"}
-]
+authors = ["Your Name <you@example.com>"]
 readme = "readme.md"
-requires-python = ">=3.10, <4.0"
-dependencies = [
-    "fastapi (>=0.120.0,<0.121.0)",
-    "uvicorn[standard] (>=0.38.0,<0.39.0)",
-    "pydantic (>=2.12.3,<3.0.0)",
-    "langgraph (>=1.0.1,<2.0.0)",
-    "langchain-openai (>=1.0.1,<2.0.0)",
-    "langchain-anthropic (>=1.0.0,<2.0.0)",
-    "langchain-google-genai (>=2.0.11,<3.0.0)",
-    "langchain-community (>=0.4,<0.5)",
-    "python-dotenv (>=1.0.0,<2.0.0)",
-    "websockets (>=14.0,<15.0)",
-    "langchain (>=1.0.2,<2.0.0)"
-]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.10, <4.0"
+fastapi = ">=0.120.0,<0.121.0"
+uvicorn = {extras = ["standard"], version = ">=0.38.0,<0.39.0"}
+pydantic = ">=2.12.3,<3.0.0"
+langgraph = ">=1.0.1,<2.0.0"
+langchain-openai = ">=1.0.1,<2.0.0"
+langchain-anthropic = ">=1.0.0,<2.0.0"
+langchain-google-genai = ">=2.0.11,<3.0.0"
+langchain-community = ">=0.4,<0.5"
+python-dotenv = ">=1.0.0,<2.0.0"
+websockets = ">=14.0,<15.0"
+langchain = ">=1.0.2,<2.0.0"
 
 
 [build-system]
