@@ -3,7 +3,7 @@
 
 ## Overview
 
-Implement a collapsible AI chat panel with WebSocket communication to a Python server. The AI agent will receive commands from the server to modify the Arrow project's node network, with automatic layout spacing, error handling, and embedded project state synchronization. The AI panel is disabled until a named project is opened (not the default "Untitled Adventure").
+Implement a collapsible AI chat panel with WebSocket communication to a Python server. The AI agent will receive commands from the server to modify the Arrow project's node network, with automatic layout spacing, error handling, and embedded project state synchronization. The AI panel is disabled until a real project is opened (project ID >= 0, not the startup blank project with ID = -1).
 
 ## Architecture Decision: Embedded Project State
 
@@ -70,8 +70,9 @@ var ai_operation_start_checkpoint_index: int = -1  # History index when AI start
 - Stop processing button (visible only during PROCESSING/EXECUTING)
 - Connection status indicator
 - Disable input during PROCESSING/EXECUTING states
-- **Disable entire panel until a named project is opened** (not "Untitled Adventure")
+- **Disable entire panel when project ID = -1** (startup blank project)
 - Show informational message when disabled: "Open or create a named project to use AI features"
+- Check `ProMan.get_active_project_id()` to determine if panel should be enabled
 
 **UI Structure:**
 
@@ -149,17 +150,23 @@ Main/Editor (VBoxContainer)
 
 When AIPanel is visible, it takes up space and Center automatically adjusts. When hidden, Center expands to full width.
 
-### Project Name Validation
+### Project ID Validation
 
 The AI chat panel should be disabled (with informational overlay) when:
-- No project is currently open
-- The current project name is "Untitled Adventure" (default startup project)
+- `ProMan.get_active_project_id() == -1` (startup blank project)
 
 The panel should become enabled when:
-- A project with any other name is opened or created
-- User saves/renames project from "Untitled Adventure" to a custom name
+- `ProMan.get_active_project_id() >= 0` (real project opened or saved)
 
-This ensures AI operations only work on intentionally created/named projects.
+**Implementation Logic:**
+
+```gdscript
+# Check if AI panel should be enabled
+func should_enable_ai_panel() -> bool:
+    return Main.Mind.ProMan.get_active_project_id() >= 0
+```
+
+This ensures AI operations only work on real saved/named projects, not the temporary startup blank project. The project gets a real ID (>= 0) when first saved or when an existing project is opened.
 
 ### Update Preferences Panel
 
@@ -369,7 +376,7 @@ func update_project_entry(node_id: int) -> int
 
 1. Create AI state manager singleton
 2. Create WebSocket adapter with basic connection
-3. Create chat panel UI and scene with project name validation
+3. Create chat panel UI and scene with project ID validation
 4. Integrate chat panel into main scene
 5. Add preferences for WebSocket config
 6. Implement message protocol with embedded project state (send/receive)
@@ -388,10 +395,10 @@ func update_project_entry(node_id: int) -> int
 - [x] Create AI chat panel UI scene and script with collapsible sidebar design
 - [x] Add AI settings section to preferences panel for WebSocket host:port configuration
 - [x] Integrate chat panel into main.tscn and main_ui_management.gd
-- [ ] Add project name validation to disable AI panel for "Untitled Adventure"
-- [ ] Implement JSON message protocol with embedded arrow_content in user_message and function_result
+- [x] Add project ID validation to disable AI panel when get_active_project_id() == -1
+- [x] Implement JSON message protocol with embedded arrow_content in user_message and function_result
 - [ ] Add save-before-send logic in WebSocket adapter for user messages
-- [ ] Add save-after-execute logic in command dispatcher for function results
+- [ ] Add save-after-execute logic in command dispatcher for function results (only on success)
 - [ ] Create AI command dispatcher to map server commands to Mind functions
 - [ ] Modify central_mind.gd to save checkpoint when transitioning from IDLE to PROCESSING
 - [ ] Integrate auto-layout calculation for AI-created nodes at (0,0)
