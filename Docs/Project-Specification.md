@@ -268,6 +268,39 @@ func save_project(...):
 3. Clear pending operations queue
 4. Display "Operation stopped" in chat
 
+## Websocket API
+
+### Create and insert nodes
+func create_insert_node(type: String, offset: Vector2, scene_id: int = -1, draw: bool = true, name_prefix: String = "", preset: Dictionary = {}) -> int
+func quick_insert_node(node_type: String, offset: Vector2, connection = null) -> void
+func update_node(node_id: int, name: String = "", data: Dictionary = {}, notes: String = "", is_auto_update: bool = false) -> void:
+func remove_node(node_id: int, forced: bool = false) -> bool:
+
+### Update node properties
+func update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1) -> void
+
+### Scene operations
+func create_new_scene(is_macro: bool = false) -> void
+func update_scene(scene_id: int, name: String = "", entry: int = -1, macro: bool = null, notes: String = "") -> void:
+func remove_scene(scene_id: int, forced: bool = false) -> bool:
+
+### Variables
+func create_new_variable(type: String) -> void
+func update_variable(variable_id: int, name: String = "", type: String = "", initial_value = null, notes: String = "") -> void:
+func remove_variable(variable_id: int, forced: bool = false) -> bool:
+
+### Characters
+func create_new_character() -> void
+func update_character(character_id: int, name: String = "", color: String = "", tags: Dictionary = {}, notes: String = "") -> void:
+func remove_character(character_id: int, forced: bool = false) -> bool:
+
+### Utility functions
+func node_connection_replacement(conversation_table: Dictionary, remake_lost_connections: bool = true) -> Array
+
+### Entry points
+func update_scene_entry(node_id: int) -> int
+func update_project_entry(node_id: int) -> int
+
 ## Files to Create
 
 1. `Arrow/scripts/core/ai_websocket_adapter.gd` - WebSocket communication
@@ -326,7 +359,7 @@ func save_project(...):
 
 ### To-dos
 
-- [ ] Create AI state manager singleton with IDLE/PROCESSING/EXECUTING states
+- [x] Create AI state manager singleton with IDLE/PROCESSING/EXECUTING states
 - [ ] Create WebSocket adapter for server communication with polling in _process()
 - [ ] Create AI chat panel UI scene and script with collapsible sidebar design
 - [ ] Add AI settings section to preferences panel for WebSocket host:port configuration
