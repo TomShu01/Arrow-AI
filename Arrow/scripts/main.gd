@@ -13,7 +13,7 @@ signal mind_initialized()
 @onready var UI = MainUserInterface.UiManager.new(self)
 @onready var Configs = Configuration.ConfigHandler.new(self)
 @onready var Mind = CentralMind.Mind.new(self)
-@onready var Grid = $/root/Main/Editor/Center/Grid
+@onready var Grid = $/root/Main/Editor/Centre_Wrapper/Center/Grid
 
 # Quick Preferences (defaults)
 @export var _AUTO_INSPECT:bool = true

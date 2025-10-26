@@ -8,7 +8,7 @@ extends Control
 signal relay_request_mind()
 
 @onready var Main = get_tree().get_root().get_child(0)
-@onready var Grid = $/root/Main/Editor/Center/Grid
+@onready var Grid = $/root/Main/Editor/Centre_Wrapper/Center/Grid
 
 var _LISTED_CHARACTERS_BY_ID = {}
 var _LISTED_CHARACTERS_BY_NAME = {}

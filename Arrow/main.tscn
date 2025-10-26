@@ -1,4 +1,4 @@
-[gd_scene load_steps=60 format=3 uid="uid://bqitgi15pxprx"]
+[gd_scene load_steps=61 format=3 uid="uid://bqitgi15pxprx"]
 
 [ext_resource type="Texture2D" uid="uid://c1d56i348qty0" path="res://assets/about_splash.png" id="1_ktviq"]
 [ext_resource type="Theme" uid="uid://7iui7va3jch8" path="res://assets/themes/dark.tres" id="1_nah4y"]
@@ -29,6 +29,7 @@
 [ext_resource type="Script" uid="uid://bahvfetu2v2m8" path="res://scripts/editor/minimap.gd" id="26_g6oda"]
 [ext_resource type="Script" uid="uid://le3w7a81gfye" path="res://scripts/editor/query.gd" id="27_oamwo"]
 [ext_resource type="Script" uid="uid://c14jytxi60272" path="res://scripts/editor/quick_preferences.gd" id="28_jwiiu"]
+[ext_resource type="Script" uid="uid://dp7qxj8r2qn3f" path="res://scripts/editor/panels/ai_chat.gd" id="29_aichat"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_6unog"]
 atlas = ExtResource("7_0tmvq")
@@ -779,9 +780,9 @@ theme = ExtResource("1_nah4y")
 [node name="Inspector" type="PanelContainer" parent="FloatingTools/Control"]
 layout_mode = 1
 anchors_preset = -1
-anchor_left = 0.7
+anchor_left = 0.4
 anchor_top = 0.115
-anchor_right = 0.975
+anchor_right = 0.675
 anchor_bottom = 0.855
 script = ExtResource("12_renut")
 
@@ -2075,19 +2076,24 @@ grow_horizontal = 2
 grow_vertical = 0
 color = Color(0.74902, 0.121569, 0.54902, 1)
 
-[node name="Center" type="Control" parent="Editor"]
-layout_direction = 2
+[node name="Centre_Wrapper" type="HBoxContainer" parent="Editor"]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="Grid" type="GraphEdit" parent="Editor/Center"]
+[node name="Center" type="Control" parent="Editor/Centre_Wrapper"]
+layout_direction = 2
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Grid" type="GraphEdit" parent="Editor/Centre_Wrapper/Center"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-scroll_offset = Vector2(0, -59)
+scroll_offset = Vector2(-354, 0)
 snapping_distance = 5
 right_disconnects = true
 zoom_min = 0.1
@@ -2098,7 +2104,7 @@ minimap_size = Vector2(1024, 256)
 show_zoom_label = true
 script = ExtResource("25_3y1ae")
 
-[node name="MiniMap" type="Panel" parent="Editor/Center"]
+[node name="MiniMap" type="Panel" parent="Editor/Centre_Wrapper/Center"]
 layout_mode = 1
 anchors_preset = -1
 anchor_top = 1.0
@@ -2108,7 +2114,7 @@ offset_top = -100.0
 offset_right = 300.0
 offset_bottom = -25.0
 
-[node name="Area" type="Control" parent="Editor/Center/MiniMap"]
+[node name="Area" type="Control" parent="Editor/Centre_Wrapper/Center/MiniMap"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -2116,6 +2122,98 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("26_g6oda")
+
+[node name="AIChat" type="PanelContainer" parent="Editor/Centre_Wrapper"]
+visible = false
+custom_minimum_size = Vector2(350, 0)
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("29_aichat")
+
+[node name="Sections" type="VBoxContainer" parent="Editor/Centre_Wrapper/AIChat"]
+layout_direction = 1
+layout_mode = 2
+
+[node name="Titlebar" type="HBoxContainer" parent="Editor/Centre_Wrapper/AIChat/Sections"]
+layout_mode = 2
+
+[node name="Drag" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Titlebar"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+mouse_default_cursor_shape = 6
+disabled = true
+text = "AI Agent"
+icon = SubResource("AtlasTexture_gxh6s")
+flat = true
+alignment = 0
+expand_icon = true
+
+[node name="Resizer" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Titlebar"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 11
+disabled = true
+icon = SubResource("AtlasTexture_3t2oi")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="Chat" type="PanelContainer" parent="Editor/Centre_Wrapper/AIChat/Sections"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Scroll" type="ScrollContainer" parent="Editor/Centre_Wrapper/AIChat/Sections/Chat"]
+layout_mode = 2
+follow_focus = true
+
+[node name="Messages" type="VBoxContainer" parent="Editor/Centre_Wrapper/AIChat/Sections/Chat/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Input" type="HBoxContainer" parent="Editor/Centre_Wrapper/AIChat/Sections"]
+layout_mode = 2
+
+[node name="Field" type="LineEdit" parent="Editor/Centre_Wrapper/AIChat/Sections/Input"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Type your message..."
+
+[node name="Send" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Input"]
+layout_mode = 2
+text = "Send"
+
+[node name="Toolbar" type="HBoxContainer" parent="Editor/Centre_Wrapper/AIChat/Sections"]
+layout_mode = 2
+
+[node name="Status" type="Label" parent="Editor/Centre_Wrapper/AIChat/Sections/Toolbar"]
+layout_mode = 2
+text = "○ Disconnected"
+
+[node name="Spacer" type="MarginContainer" parent="Editor/Centre_Wrapper/AIChat/Sections/Toolbar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Connect" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Toolbar"]
+layout_mode = 2
+text = "Connect"
+
+[node name="Stop" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Toolbar"]
+visible = false
+layout_mode = 2
+text = "Stop"
+
+[node name="Clear" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Toolbar"]
+layout_mode = 2
+tooltip_text = "Clear chat history"
+text = "Clear"
+
+[node name="Close" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Toolbar"]
+layout_mode = 2
+tooltip_text = "Close AI Chat Panel"
+text = "Close"
 
 [node name="Bottom" type="PanelContainer" parent="Editor"]
 layout_mode = 2
@@ -2206,6 +2304,15 @@ toggle_mode = true
 button_pressed = true
 text = "Inspect."
 icon = SubResource("AtlasTexture_nb1b5")
+expand_icon = true
+
+[node name="AIChatVisibility" type="Button" parent="Editor/Bottom/Bar/Quick/Access"]
+custom_minimum_size = Vector2(128, 24)
+layout_mode = 2
+tooltip_text = "Toggle AI Chat Panel (Ctrl + Shift + A)"
+toggle_mode = true
+text = "AI Agent"
+icon = SubResource("AtlasTexture_gxh6s")
 expand_icon = true
 
 [node name="SpecialPreferences" type="MenuButton" parent="Editor/Bottom/Bar/Quick/Access"]
