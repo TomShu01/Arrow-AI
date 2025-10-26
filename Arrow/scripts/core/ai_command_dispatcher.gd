@@ -13,6 +13,7 @@ extends Node
 var _mind: CentralMind.Mind = null
 var _adapter: AIWebSocketAdapter = null
 var _state_manager: AIStateManager = null
+var _layout_calculator: LayoutCalculation = null
 
 # Signals
 signal command_executed(request_id: String, success: bool)
@@ -27,11 +28,16 @@ func initialize(mind: CentralMind.Mind, adapter: AIWebSocketAdapter, state_mgr: 
 	_adapter = adapter
 	_state_manager = state_mgr
 	
+	# Create layout calculator for auto-positioning nodes from websocket
+	if _mind:
+		# LayoutCalculation accepts CentralMind.Mind directly
+		_layout_calculator = LayoutCalculation.new(_mind)
+	
 	# Connect to adapter's function_call signal
 	if _adapter:
 		_adapter.function_call_received.connect(_on_function_call_received)
 	
-	print("[AICommandDispatcher] Initialized")
+	print("[AICommandDispatcher] Initialized with auto-layout support")
 
 # ============================================================================
 # Command Execution
@@ -109,9 +115,23 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 					result.error = "Missing required parameter: type"
 					return result
 				
+				# Calculate smart position if offset not provided (websocket auto-layout)
+				var offset = args.get("offset", Vector2.ZERO)
+				if offset == Vector2.ZERO and _layout_calculator != null:
+					var scene_id = args.get("scene_id", -1)
+					if scene_id == -1:
+						scene_id = _mind._CURRENT_OPEN_SCENE_ID
+					
+					# Use smart auto-layout based on existing nodes
+					offset = _layout_calculator.calculate_smart_position_for_new_node(
+						args.get("type", ""),
+						scene_id
+					)
+					print("[AICommandDispatcher] Auto-layout: Calculated position ", offset, " for node type '", args.get("type", ""), "'")
+				
 				var node_id = _mind.create_insert_node(
 					args.get("type", ""),
-					args.get("offset", Vector2.ZERO),
+					offset,
 					args.get("scene_id", -1),
 					args.get("draw", true),
 					args.get("name", ""),
@@ -132,9 +152,21 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 					result.error = "Missing required parameter: node_type"
 					return result
 				
+				# Calculate smart position if offset not provided (websocket auto-layout)
+				var offset = args.get("offset", Vector2.ZERO)
+				if offset == Vector2.ZERO and _layout_calculator != null:
+					var scene_id = _mind._CURRENT_OPEN_SCENE_ID
+					
+					# Use smart auto-layout based on existing nodes
+					offset = _layout_calculator.calculate_smart_position_for_new_node(
+						args.get("node_type", ""),
+						scene_id
+					)
+					print("[AICommandDispatcher] Auto-layout: Calculated position ", offset, " for node type '", args.get("node_type", ""), "'")
+				
 				_mind.quick_insert_node(
 					args.get("node_type", ""),
-					args.get("offset", Vector2.ZERO),
+					offset,
 					args.get("connection", null)
 				)
 				result.success = true
