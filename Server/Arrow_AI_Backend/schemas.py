@@ -2,12 +2,6 @@ from pydantic import BaseModel
 from typing import Optional, Any, List, Dict
 
 
-class FileSyncMessage(BaseModel):
-    type: str  # "file_sync"
-    project_id: int
-    arrow_content: str
-    timestamp: int
-
 class HistoryItem(BaseModel):
     message: str
     output: str
@@ -15,6 +9,7 @@ class HistoryItem(BaseModel):
 class UserMessage(BaseModel):
     type: str  # "user_message"
     message: str
+    arrow_content: str
     history: List[HistoryItem] = []
     selected_node_ids: List[int] = []
     current_scene_id: Optional[int] = None
@@ -24,6 +19,7 @@ class FunctionResultMessage(BaseModel):
     type: str  # "function_result"
     request_id: str
     success: bool
+    arrow_content: str
     result: Any = ""
     error: str = ""
 

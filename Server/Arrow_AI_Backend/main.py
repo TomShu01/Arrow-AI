@@ -3,7 +3,6 @@ from uuid import uuid4
 import asyncio
 from typing import Dict, Any
 from Arrow_AI_Backend.schemas import (
-    FileSyncMessage,
     UserMessage,
     FunctionResultMessage,
     StopMessage,
@@ -51,18 +50,12 @@ async def websocket_endpoint(websocket: WebSocket):
             raw = await websocket.receive_json()
             message_type = raw.get("type")
 
-            # ========== Handle File Sync ==========
-            if message_type == "file_sync":
-                msg = FileSyncMessage(**raw)
-                session_state[session_id]["arrow_content"] = msg.arrow_content
-                session_state[session_id]["project_id"] = msg.project_id
-                print(f"[{session_id}] File synced for project {msg.project_id}")
-
             # ========== Handle User Message ==========
-            elif message_type == "user_message":
+            if message_type == "user_message":
                 msg = UserMessage(**raw)
                 
-                # Update session context
+                # Update session context with arrow content and metadata
+                session_state[session_id]["arrow_content"] = msg.arrow_content
                 if msg.current_scene_id:
                     session_state[session_id]["current_scene_id"] = msg.current_scene_id
                 if msg.current_project_id:
@@ -126,6 +119,9 @@ async def websocket_endpoint(websocket: WebSocket):
             elif message_type == "function_result":
                 msg = FunctionResultMessage(**raw)
                 print(f"[{session_id}] Function result for {msg.request_id}: success={msg.success}")
+                
+                # Update session state with the latest arrow content
+                session_state[session_id]["arrow_content"] = msg.arrow_content
                 
                 # Resolve the pending Future for this function call
                 # This allows the tool to continue execution

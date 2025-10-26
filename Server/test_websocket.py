@@ -2,8 +2,10 @@
 """
 WebSocket client to test the Arrow AI Agent protocol with tool execution.
 
-This test simulates the Arrow client receiving function calls from the server
-and responding with function results.
+This test simulates the Arrow client:
+- Sending user messages with arrow_content
+- Receiving function calls from the server
+- Responding with function results (including updated arrow_content)
 
 Run this after starting the server with: 
   cd Server
@@ -25,6 +27,7 @@ async def test_simple():
     return {
         "type": "user_message",
         "message": "Create a dialog node where Elena greets the player and asks about their quest",
+        "arrow_content": "<?xml version=\"1.0\"?><arrow></arrow>",
         "history": [],
         "selected_node_ids": [12, 15],
         "current_scene_id": 5,
@@ -37,6 +40,7 @@ async def test_complex():
     return {
         "type": "user_message",
         "message": "Create a branching narrative: First a dialog where Elena offers help, then a hub with three choices (accept, decline, ask why), and connect them all",
+        "arrow_content": "<?xml version=\"1.0\"?><arrow></arrow>",
         "history": [],
         "selected_node_ids": [12, 15],
         "current_scene_id": 5,
@@ -56,21 +60,7 @@ async def test_protocol(test_type="simple"):
         assert data["type"] == "connected"
         print(f"✓ Connected with session: {data['data']['sessionId']}\n")
 
-        # 2. Send file_sync message
-        print("=== Sending file_sync ===")
-        file_sync = {
-            "type": "file_sync",
-            "project_id": 1,
-            "arrow_content": "<?xml version=\"1.0\"?><arrow></arrow>",
-            "timestamp": 1698765432
-        }
-        await websocket.send(json.dumps(file_sync))
-        print(f"> {json.dumps(file_sync, indent=2)}\n")
-
-        # Give server time to process
-        await asyncio.sleep(0.1)
-
-        # 3. Send user_message
+        # 2. Send user_message
         print(f"=== Sending user_message ({test_type} test) ===")
         if test_type == "complex":
             user_message = await test_complex()
@@ -80,7 +70,7 @@ async def test_protocol(test_type="simple"):
         await websocket.send(json.dumps(user_message))
         print(f"> Message: {user_message['message']}\n")
 
-        # 4. Receive messages and respond to function calls
+        # 3. Receive messages and respond to function calls
         print("=== Listening for server messages ===")
         message_count = 0
         function_call_count = 0
@@ -106,6 +96,7 @@ async def test_protocol(test_type="simple"):
                     "type": "function_result",
                     "request_id": data["request_id"],
                     "success": True,
+                    "arrow_content": "<?xml version=\"1.0\"?><arrow></arrow>",
                     "result": f"Successfully executed {data['function']} (simulated)",
                     "error": ""
                 }
@@ -122,7 +113,7 @@ async def test_protocol(test_type="simple"):
                 print(f"⚠ Unexpected message type: {data['type']}")
                 print(f"  Data: {json.dumps(data, indent=2)}\n")
 
-        # 5. Test stop message
+        # 4. Test stop message
         print("=== Sending stop signal ===")
         stop = {"type": "stop"}
         await websocket.send(json.dumps(stop))
