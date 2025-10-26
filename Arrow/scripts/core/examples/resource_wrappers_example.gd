@@ -5,7 +5,8 @@ extends RefCounted
 class_name ResourceWrappersExample
 
 # Example usage of the ResourceWrappers class
-func demonstrate_usage(mind: Node):
+# mind parameter should be a CentralMind.Mind instance
+func demonstrate_usage(mind):
 	# Assuming you have access to the central mind
 	var wrappers = ResourceWrappers.new(mind)
 	

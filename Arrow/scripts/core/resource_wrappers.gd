@@ -8,10 +8,10 @@
 extends RefCounted
 class_name ResourceWrappers
 
-# Core reference to the central mind
-var _mind: Node
+# Core reference to the central mind (CentralMind.Mind instance)
+var _mind
 
-func _init(mind: Node):
+func _init(mind):
 	_mind = mind
 
 # =============================================================================

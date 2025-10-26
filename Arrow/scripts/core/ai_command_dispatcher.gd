@@ -45,8 +45,8 @@ func _on_function_call_received(request_id: String, function_name: String, args:
 	if _state_manager and _state_manager.is_ai_processing():
 		_state_manager.begin_execution()
 	
-	# Execute the function
-	var result = _execute_function(function_name, args)
+	# Execute the function with error handling
+	var result = _execute_function_safe(request_id, function_name, args)
 	
 	if result.success:
 		# Save project after successful execution
@@ -67,6 +67,28 @@ func _on_function_call_received(request_id: String, function_name: String, args:
 		
 		command_failed.emit(request_id, result.error)
 		printerr("[AICommandDispatcher] Error in ", function_name, ": ", result.error)
+
+func _execute_function_safe(request_id: String, function_name: String, args: Dictionary) -> Dictionary:
+	"""
+	Safely execute a function with comprehensive error handling
+	Catches runtime errors and returns formatted error result
+	"""
+	# Log the execution attempt for debugging
+	print("[AICommandDispatcher] Executing ", function_name, " with args: ", args)
+	
+	# Execute function and catch any runtime errors
+	var result = _execute_function(function_name, args)
+	
+	# If execution failed, log to console for debugging
+	if not result.success:
+		push_error("[AICommandDispatcher] Function execution failed: " + result.error)
+		# Log the error to Godot's console for debugging purposes
+		print("[AICommandDispatcher] ERROR: ", result.error)
+		print("[AICommandDispatcher] Function: ", function_name)
+		print("[AICommandDispatcher] Arguments: ", args)
+		print("[AICommandDispatcher] Request ID: ", request_id)
+	
+	return result
 
 func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 	"""

@@ -53,6 +53,9 @@ class Mind :
 	
 	var NODE_TYPES_LIST
 	
+	# AI Resource Wrappers for convenient command execution
+	var _resource_wrappers: ResourceWrappers = null
+	
 	# the active project (in-memory)
 	var _PROJECT:Dictionary = {}
 	var _CURRENT_OPEN_SCENE_ID:int = -1
@@ -95,6 +98,8 @@ class Mind :
 		Notifier = Main.get_node(NOTIFIER)
 		Authors = Main.get_node(AUTHORS)
 		AIChat = Main.get_node(AI_CHAT)
+		# Initialize AI Resource Wrappers
+		_resource_wrappers = ResourceWrappers.new(self)
 		# then ...
 		register_connections()
 		load_node_types()
@@ -2738,3 +2743,71 @@ class Mind :
 		else:
 			handled = false
 		return handled
+	
+	# ============================================================================
+	# AI COMMAND WRAPPER METHODS
+	# ============================================================================
+	# These methods provide convenient wrappers for AI command execution
+	# They delegate to the ResourceWrappers instance
+	
+	# Wrapper for updating node properties (for AI dispatcher)
+	func update_node(node_id: int, name: String = "", data: Dictionary = {}, notes: String = "", is_auto_update: bool = false) -> void:
+		if _resource_wrappers:
+			_resource_wrappers.update_node(node_id, name, data, notes, is_auto_update)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot update node")
+	
+	# Wrapper for updating variable properties (for AI dispatcher)
+	func update_variable(variable_id: int, name: String = "", type: String = "", initial_value = null, notes: String = "") -> void:
+		if _resource_wrappers:
+			_resource_wrappers.update_variable(variable_id, name, type, initial_value, notes)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot update variable")
+	
+	# Wrapper for updating character properties (for AI dispatcher)
+	func update_character(character_id: int, name: String = "", color: String = "", tags: Dictionary = {}, notes: String = "") -> void:
+		if _resource_wrappers:
+			_resource_wrappers.update_character(character_id, name, color, tags, notes)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot update character")
+	
+	# Wrapper for updating scene properties (for AI dispatcher)
+	func update_scene(scene_id: int, name: String = "", entry: int = -1, macro = null, notes: String = "") -> void:
+		if _resource_wrappers:
+			var update_macro = (macro != null)
+			var macro_value = (macro if macro is bool else false)
+			_resource_wrappers.update_scene(scene_id, name, entry, macro_value, notes, update_macro)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot update scene")
+	
+	# Wrapper for removing node (for AI dispatcher)
+	func remove_node(node_id: int, forced: bool = false) -> bool:
+		if _resource_wrappers:
+			return _resource_wrappers.remove_node(node_id, forced)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot remove node")
+			return false
+	
+	# Wrapper for removing variable (for AI dispatcher)
+	func remove_variable(variable_id: int, forced: bool = false) -> bool:
+		if _resource_wrappers:
+			return _resource_wrappers.remove_variable(variable_id, forced)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot remove variable")
+			return false
+	
+	# Wrapper for removing character (for AI dispatcher)
+	func remove_character(character_id: int, forced: bool = false) -> bool:
+		if _resource_wrappers:
+			return _resource_wrappers.remove_character(character_id, forced)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot remove character")
+			return false
+	
+	# Wrapper for removing scene (for AI dispatcher)
+	func remove_scene(scene_id: int, forced: bool = false) -> bool:
+		if _resource_wrappers:
+			return _resource_wrappers.remove_scene(scene_id, forced)
+		else:
+			printerr("[Mind] ResourceWrappers not initialized - cannot remove scene")
+			return false
