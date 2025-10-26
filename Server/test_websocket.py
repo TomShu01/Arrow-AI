@@ -1,15 +1,50 @@
 #!/usr/bin/env python3
 """
-Simple WebSocket client to test the Arrow AI Agent protocol.
-Run this after starting the server with: uvicorn Arrow_AI_Backend.main:app --reload
+WebSocket client to test the Arrow AI Agent protocol with tool execution.
+
+This test simulates the Arrow client receiving function calls from the server
+and responding with function results.
+
+Run this after starting the server with: 
+  cd Server
+  uvicorn Arrow_AI_Backend.main:app --reload
+
+Then in another terminal:
+  cd Server
+  python test_websocket.py
 """
 
 import asyncio
 import json
 import websockets
+import sys
 
 
-async def test_protocol():
+async def test_simple():
+    """Test simple query that should use tools"""
+    return {
+        "type": "user_message",
+        "message": "Create a dialog node where Elena greets the player and asks about their quest",
+        "history": [],
+        "selected_node_ids": [12, 15],
+        "current_scene_id": 5,
+        "current_project_id": 1
+    }
+
+
+async def test_complex():
+    """Test complex query that should trigger planning and multiple tools"""
+    return {
+        "type": "user_message",
+        "message": "Create a branching narrative: First a dialog where Elena offers help, then a hub with three choices (accept, decline, ask why), and connect them all",
+        "history": [],
+        "selected_node_ids": [12, 15],
+        "current_scene_id": 5,
+        "current_project_id": 1
+    }
+
+
+async def test_protocol(test_type="simple"):
     uri = "ws://localhost:8000/ws/chat"
     
     async with websockets.connect(uri) as websocket:
@@ -35,50 +70,59 @@ async def test_protocol():
         # Give server time to process
         await asyncio.sleep(0.1)
 
-        # 3. Send user_message (complex query to trigger planner)
-        print("=== Sending user_message ===")
-        user_message = {
-            "type": "user_message",
-            "message": "Create a branching narrative sequence where the protagonist enters a mysterious temple. First, add an entry dialog where they describe the ancient carvings on the walls. Then create three different dialog options: one where they investigate the altar, another where they examine the murals, and a third where they search for hidden passages. Each choice should lead to a unique consequence with appropriate content nodes showing what they discover. Finally, add a hub node that brings all three paths back together where the protagonist realizes the temple is a test of wisdom.",
-            "history": [],
-            "selected_node_ids": [12, 15],
-            "current_scene_id": 5,
-            "current_project_id": 1
-        }
+        # 3. Send user_message
+        print(f"=== Sending user_message ({test_type} test) ===")
+        if test_type == "complex":
+            user_message = await test_complex()
+        else:
+            user_message = await test_simple()
+        
         await websocket.send(json.dumps(user_message))
-        print(f"> {json.dumps(user_message, indent=2)}\n")
+        print(f"> Message: {user_message['message']}\n")
 
-        # 4. Receive all chat_response messages until end
-        print("=== Waiting for chat responses ===")
+        # 4. Receive messages and respond to function calls
+        print("=== Listening for server messages ===")
         message_count = 0
+        function_call_count = 0
+        
         while True:
             response = await websocket.recv()
             data = json.loads(response)
             
             if data["type"] == "chat_response":
                 message_count += 1
-                print(f"✓ Response {message_count}: {data['message']}\n")
+                print(f"✓ Chat Response {message_count}:")
+                print(f"  {data['message']}\n")
+                
+            elif data["type"] == "function_call":
+                function_call_count += 1
+                print(f"✓ Function Call {function_call_count}:")
+                print(f"  Request ID: {data['request_id']}")
+                print(f"  Function: {data['function']}")
+                print(f"  Arguments: {json.dumps(data['arguments'], indent=4)}\n")
+                
+                # Simulate successful execution and send result back
+                function_result = {
+                    "type": "function_result",
+                    "request_id": data["request_id"],
+                    "success": True,
+                    "result": f"Successfully executed {data['function']} (simulated)",
+                    "error": ""
+                }
+                await websocket.send(json.dumps(function_result))
+                print(f"✓ Sent function_result for {data['request_id']}\n")
+                
             elif data["type"] == "end":
-                print(f"✓ Conversation ended (received {message_count} messages)\n")
+                print(f"✓ Conversation ended")
+                print(f"  Total chat responses: {message_count}")
+                print(f"  Total function calls: {function_call_count}\n")
                 break
+                
             else:
-                print(f"⚠ Unexpected message type: {data['type']}\n")
+                print(f"⚠ Unexpected message type: {data['type']}")
+                print(f"  Data: {json.dumps(data, indent=2)}\n")
 
-        # 6. Test function_result message (server just logs it for now)
-        print("=== Sending function_result ===")
-        function_result = {
-            "type": "function_result",
-            "request_id": "req_12345",
-            "success": True,
-            "result": "Node created successfully",
-            "error": ""
-        }
-        await websocket.send(json.dumps(function_result))
-        print(f"> {json.dumps(function_result, indent=2)}\n")
-
-        await asyncio.sleep(0.1)
-
-        # 7. Test stop message
+        # 5. Test stop message
         print("=== Sending stop signal ===")
         stop = {"type": "stop"}
         await websocket.send(json.dumps(stop))
@@ -86,14 +130,30 @@ async def test_protocol():
 
         await asyncio.sleep(0.1)
 
-        print("=== All tests passed! ===")
+        print("=== ✓ All tests passed! ===")
 
 
 if __name__ == "__main__":
+    # Check for test type argument
+    test_type = "simple"
+    if len(sys.argv) > 1:
+        if sys.argv[1] in ["simple", "complex"]:
+            test_type = sys.argv[1]
+        else:
+            print("Usage: python test_websocket.py [simple|complex]")
+            print("  simple  - Test single dialog creation (default)")
+            print("  complex - Test complex multi-node scenario")
+            sys.exit(1)
+    
     try:
-        asyncio.run(test_protocol())
+        print(f"Running {test_type.upper()} test...\n")
+        asyncio.run(test_protocol(test_type))
+    except KeyboardInterrupt:
+        print("\n\n⚠ Test interrupted by user")
     except Exception as e:
         print(f"\n❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         print("\nMake sure the server is running:")
         print("  cd Server")
         print("  uvicorn Arrow_AI_Backend.main:app --reload")

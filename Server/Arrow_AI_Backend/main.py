@@ -16,6 +16,10 @@ app = FastAPI()
 # Store project state per session
 session_state: Dict[str, Dict[str, Any]] = {}
 
+# Store running agent tasks per session
+# Maps session_id -> asyncio.Task
+running_agents: Dict[str, asyncio.Task] = {}
+
 
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
@@ -66,38 +70,78 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 print(f"[{session_id}] User message: {msg.message}")
                 
-                try:
-                    await supervisor_agent.ainvoke({
-                        "session_id": session_id,
-                        "message_id": str(uuid4()),
-                        "input": msg.message,
-                        "complexity": "",  # Will be set by analyzer
-                        "plan": [],
-                        "past_steps": [],
-                        "response": ""
-                    })
-                    
-                    await manager.send(session_id, {
-                        "type": "end"
-                    })
-                    
-                except Exception as e:
-                    print(f"[{session_id}] Error processing message: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    await manager.send(session_id, {
-                        "type": "chat_response",
-                        "message": f"Error: {str(e)}"
-                    })
-                    await manager.send(session_id, {
-                        "type": "end"
-                    })
+                # Cancel any running agent for this session
+                if session_id in running_agents:
+                    running_agents[session_id].cancel()
+                    running_agents.pop(session_id, None)
+                
+                # Create and run agent in background task
+                async def run_agent():
+                    try:
+                        # Create initial state
+                        initial_state = {
+                            "session_id": session_id,
+                            "message_id": str(uuid4()),
+                            "input": msg.message,
+                            "complexity": "",  # Will be set by analyzer
+                            "plan": [],
+                            "past_steps": [],
+                            "response": "",
+                            "replan_reason": "",
+                            "pending_request_id": None,
+                            "function_result": None,
+                            "current_scene_id": msg.current_scene_id
+                        }
+                        
+                        # Invoke supervisor agent
+                        await supervisor_agent.ainvoke(initial_state)
+                        
+                        await manager.send(session_id, {
+                            "type": "end"
+                        })
+                        
+                    except asyncio.CancelledError:
+                        print(f"[{session_id}] Agent task cancelled")
+                        raise
+                    except Exception as e:
+                        print(f"[{session_id}] Error processing message: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        await manager.send(session_id, {
+                            "type": "chat_response",
+                            "message": f"Error: {str(e)}"
+                        })
+                        await manager.send(session_id, {
+                            "type": "end"
+                        })
+                    finally:
+                        # Clean up task reference
+                        running_agents.pop(session_id, None)
+                
+                # Start agent task in background
+                task = asyncio.create_task(run_agent())
+                running_agents[session_id] = task
 
             # ========== Handle Function Result ==========
             elif message_type == "function_result":
                 msg = FunctionResultMessage(**raw)
                 print(f"[{session_id}] Function result for {msg.request_id}: success={msg.success}")
-                # TODO: Handle function results in agent conversation flow
+                
+                # Resolve the pending Future for this function call
+                # This allows the tool to continue execution
+                from Arrow_AI_Backend.agent.tools.arrow_tools import set_function_result
+                
+                set_function_result(
+                    request_id=msg.request_id,
+                    success=msg.success,
+                    result=msg.result,
+                    error=msg.error
+                )
+                
+                if msg.success:
+                    print(f"[{session_id}] Function succeeded: {msg.result}")
+                else:
+                    print(f"[{session_id}] Function failed: {msg.error}")
 
             # ========== Handle Stop Signal ==========
             elif message_type == "stop":
@@ -111,5 +155,11 @@ async def websocket_endpoint(websocket: WebSocket):
     except (WebSocketDisconnect, RuntimeError) as e:
         # Handle both clean disconnects and connection errors
         print(f"[{session_id}] WebSocket disconnected: {e}")
+        
+        # Cancel running agent if any
+        if session_id in running_agents:
+            running_agents[session_id].cancel()
+            running_agents.pop(session_id, None)
+        
         manager.disconnect(session_id)
         session_state.pop(session_id, None)

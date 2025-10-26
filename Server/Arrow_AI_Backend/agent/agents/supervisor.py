@@ -73,20 +73,58 @@ async def plan_step(state: PlanExecute):
 
 # ========== Step 4: Execute Task ==========
 async def execute_step(state: PlanExecute):
-    """Execute the current task (first task in remaining plan)"""
+    """Execute the current task using the executor agent with tools"""
+    from Arrow_AI_Backend.agent.tools.arrow_tools import set_context
+    
     plan = state["plan"]
-    task = plan[0]
     
-    response_text = f"✓ Successfully completed: {task}"
+    # Set context for tools (session_id and scene_id)
+    set_context(
+        session_id=state["session_id"],
+        scene_id=state.get("current_scene_id")
+    )
     
-    await manager.send(state["session_id"], {
-        "type": "chat_response",
-        "message": response_text
-    })
+    # Create execution prompt with the full plan context
+    plan_text = "\n".join(f"{i+1}. {step}" for i, step in enumerate(plan))
+    execution_prompt = f"""Execute the following tasks:
+
+{plan_text}
+
+Work through these tasks systematically. Use the available tools to complete them."""
     
-    return {
-        "past_steps": [(task, response_text)],
-    }
+    # Invoke the executor agent
+    # The agent will use tools which will trigger interrupts
+    try:
+        result = await agent_executor.ainvoke({
+            "messages": [{"role": "user", "content": execution_prompt}]
+        })
+        
+        # Extract the final response from the agent
+        messages = result.get("messages", [])
+        final_message = messages[-1] if messages else None
+        response_text = final_message.content if final_message else "Tasks executed"
+        
+        # Notify user
+        await manager.send(state["session_id"], {
+            "type": "chat_response",
+            "message": response_text
+        })
+        
+        # Mark the first task as complete
+        task = plan[0]
+        return {
+            "past_steps": [(task, response_text)],
+        }
+        
+    except Exception as e:
+        error_msg = f"Error executing tasks: {str(e)}"
+        await manager.send(state["session_id"], {
+            "type": "chat_response",
+            "message": error_msg
+        })
+        return {
+            "past_steps": [(plan[0], error_msg)],
+        }
 
 
 # ========== Step 5: Decide Next Action ==========
