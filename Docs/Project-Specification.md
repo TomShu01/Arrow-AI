@@ -3,7 +3,18 @@
 
 ## Overview
 
-Implement a collapsible AI chat panel with WebSocket communication to a Python server. The AI agent will receive commands from the server to modify the Arrow project's node network, with automatic layout spacing, error handling, and project synchronization.
+Implement a collapsible AI chat panel with WebSocket communication to a Python server. The AI agent will receive commands from the server to modify the Arrow project's node network, with automatic layout spacing, error handling, and embedded project state synchronization. The AI panel is disabled until a named project is opened (not the default "Untitled Adventure").
+
+## Architecture Decision: Embedded Project State
+
+Instead of separate file sync messages, the complete `.arrow` project file content is embedded in every `user_message` and `function_result` message. This simplifies the protocol and ensures the server always has current state with each interaction.
+
+**Tradeoffs:**
+
+- **Pros**: Simplified protocol, guaranteed consistency, self-contained messages, easier debugging, no race conditions
+- **Cons**: Higher bandwidth usage, larger message payloads, more frequent disk I/O
+
+**Implementation**: The client saves the project to disk before sending user messages and after executing each AI command, then reads the file content to embed as a string in the message payload.
 
 ## Core Components to Create
 
@@ -12,14 +23,16 @@ Implement a collapsible AI chat panel with WebSocket communication to a Python s
 - Create a WebSocketPeer-based adapter class that connects to the server
 - Poll for messages in `_process()` with delta time accumulation
 - Parse incoming JSON messages and dispatch to appropriate handlers
-- Send outgoing messages (user messages, function results, file sync, stop signals)
+- Send outgoing messages (user messages with embedded project state, function results, stop signals)
+- Save project locally before sending user messages
 - Handle connection state management (connecting, open, closed, error)
 
 **Key Functions:**
 
 ```gdscript
 func connect_to_server(host: String, port: int) -> bool
-func send_message(message: Dictionary) -> void
+func send_user_message(message: String) -> void  # Saves project, embeds content, sends
+func send_function_result(request_id: String, success: bool, result: String, error: String) -> void
 func _process(delta: float) -> void
 func handle_server_message(message_type: String, data: Dictionary) -> void
 ```
@@ -57,6 +70,8 @@ var ai_operation_start_checkpoint_index: int = -1  # History index when AI start
 - Stop processing button (visible only during PROCESSING/EXECUTING)
 - Connection status indicator
 - Disable input during PROCESSING/EXECUTING states
+- **Disable entire panel until a named project is opened** (not "Untitled Adventure")
+- Show informational message when disabled: "Open or create a named project to use AI features"
 
 **UI Structure:**
 
@@ -64,13 +79,16 @@ var ai_operation_start_checkpoint_index: int = -1  # History index when AI start
 - Scrollable chat display area
 - Message input field at bottom
 - Action buttons toolbar
+- Disabled overlay with informational message
 
 ### 4. AI Command Dispatcher (`Arrow/scripts/core/ai_command_dispatcher.gd`)
 
 - Receive function call commands from server
 - Map command names to Mind functions
 - Execute commands and capture results/errors
-- Send function_result messages back to server
+- **Save project locally after each command execution**
+- **Embed current project state in function_result messages**
+- Send function_result messages back to server with embedded arrow_content
 - Include affected node states in error responses
 
 **Supported Commands (from specification):**
@@ -99,12 +117,13 @@ var ai_operation_start_checkpoint_index: int = -1  # History index when AI start
 - Call `calculate_optimal_position()` for nodes created at (0,0)
 - Apply spacing after each AI-created node
 
-### 6. Project Synchronization
+### 6. Project State Embedding
 
-- Sync project file to server on project open
-- Sync on every save operation
-- Send complete .arrow file content as JSON string
-- Include project_id, timestamp in sync messages
+- Embed complete .arrow file content in every user_message
+- Embed complete .arrow file content in every function_result
+- Save project to disk before sending user_message
+- Save project to disk after executing each function_call if it is successful
+- Read project file content and include as "arrow_content" string in messages
 
 ## UI Integration
 
@@ -130,6 +149,18 @@ Main/Editor (VBoxContainer)
 
 When AIPanel is visible, it takes up space and Center automatically adjusts. When hidden, Center expands to full width.
 
+### Project Name Validation
+
+The AI chat panel should be disabled (with informational overlay) when:
+- No project is currently open
+- The current project name is "Untitled Adventure" (default startup project)
+
+The panel should become enabled when:
+- A project with any other name is opened or created
+- User saves/renames project from "Untitled Adventure" to a custom name
+
+This ensures AI operations only work on intentionally created/named projects.
+
 ### Update Preferences Panel
 
 - Add "AI Agent" section in preferences
@@ -142,50 +173,46 @@ When AIPanel is visible, it takes up space and Center automatically adjusts. Whe
 
 ### Client → Server Messages
 
-**1. File Sync:**
+**1. User Message:**
 
-```json
-{
-  "type": "file_sync",
-  "data": {
-    "project_id": 1,
-    "arrow_content": "<JSON string>",
-    "timestamp": 1234567890
-  }
-}
-```
-
-**2. User Message:**
+Project is saved locally before sending. The complete .arrow file content is embedded in the message.
 
 ```json
 {
   "type": "user_message",
   "data": {
-    "message": "Add a dialog node...",
-    "history": [...],
+    "message": "Add a dialog node where the protagonist asks about the ancient artifact",
+    "history": [
+      {"message": "x1", "output": "y1"},
+      {"message": "x2", "output": "y2"}
+    ],
     "selected_node_ids": [12, 15],
     "current_scene_id": 5,
-    "current_project_id": 1
+    "current_project_id": 1,
+    "arrow_content": "<complete .arrow file content as string>"
   }
 }
 ```
 
-**3. Function Result:**
+**2. Function Result:**
+
+Project is saved locally after executing the function if there is no error. The updated .arrow file content is embedded in the response. Otherwise, we do not save and rollback to previous state, waiting for server to send a message again.
 
 ```json
 {
   "type": "function_result",
   "data": {
     "request_id": "req_12345",
-    "success": true/false,
-    "result": "...",
-    "error": "...",
-    "affected_nodes": {...}  // Include on error
+    "success": true,
+    "result": "Node created successfully",
+    "error": "",
+    "arrow_content": "<complete .arrow file content as string>",
+    "affected_nodes": {}
   }
 }
 ```
 
-**4. Stop Signal:**
+**3. Stop Signal:**
 
 ```json
 {
@@ -216,17 +243,14 @@ func on_ai_operation_start() -> void:
     AIStateManager.save_operation_start_checkpoint(_HISTORY.INDEX)
 ```
 
-### Save Hook for Sync
+### Project Save Behavior
 
-Modify `central_mind.gd::save_project()`:
+The WebSocket adapter and command dispatcher will call `save_project()` directly:
 
-```gdscript
-func save_project(...):
-    # ... existing save logic
-    # Sync with AI server after successful save
-    if AIWebSocketAdapter.is_connected():
-        AIWebSocketAdapter.sync_project_file()
-```
+- **Before sending user message**: Adapter saves project, then reads .arrow content to embed
+- **After executing AI command**: Dispatcher saves project, then reads .arrow content to embed in function_result
+
+No modifications to `central_mind.gd::save_project()` needed for synchronization - the adapter/dispatcher handle reading the file after save.
 
 ## Integration Points
 
@@ -241,8 +265,8 @@ func save_project(...):
 
 1. Add reference to AI adapter in Mind class
 2. Save checkpoint when AI operations start (transitioning from IDLE to PROCESSING)
-3. Hook project save to trigger sync
-4. Provide Mind reference to AI command dispatcher
+3. Provide Mind reference to AI command dispatcher for function execution
+4. Provide access to save_project() function for adapter/dispatcher to call before sending messages
 
 ### Configuration
 
@@ -316,7 +340,7 @@ func update_project_entry(node_id: int) -> int
 
    - Add AI adapter reference
    - Save checkpoint when transitioning from IDLE to PROCESSING
-   - Hook save for project sync
+   - Provide save_project() access to adapter/dispatcher
 
 2. `Arrow/scripts/main.gd`
 
@@ -345,14 +369,14 @@ func update_project_entry(node_id: int) -> int
 
 1. Create AI state manager singleton
 2. Create WebSocket adapter with basic connection
-3. Create chat panel UI and scene
+3. Create chat panel UI and scene with project name validation
 4. Integrate chat panel into main scene
 5. Add preferences for WebSocket config
-6. Implement message protocol (send/receive)
-7. Create command dispatcher
+6. Implement message protocol with embedded project state (send/receive)
+7. Create command dispatcher with save-and-embed logic
 8. Hook dispatcher to Mind functions
 9. Implement auto-layout on AI node creation
-10. Add project sync on save/open
+10. Add project state embedding in user messages and function results
 11. Implement error handling and rollback
 12. Add chat history management
 13. Testing and refinement
@@ -361,13 +385,15 @@ func update_project_entry(node_id: int) -> int
 
 - [x] Create AI state manager singleton with IDLE/PROCESSING/EXECUTING states
 - [x] Create WebSocket adapter for server communication with polling in _process()
-- [ ] Create AI chat panel UI scene and script with collapsible sidebar design
-- [ ] Add AI settings section to preferences panel for WebSocket host:port configuration
-- [ ] Integrate chat panel into main.tscn and main_ui_management.gd
-- [ ] Implement JSON message protocol for client-server communication
+- [x] Create AI chat panel UI scene and script with collapsible sidebar design
+- [x] Add AI settings section to preferences panel for WebSocket host:port configuration
+- [x] Integrate chat panel into main.tscn and main_ui_management.gd
+- [ ] Add project name validation to disable AI panel for "Untitled Adventure"
+- [ ] Implement JSON message protocol with embedded arrow_content in user_message and function_result
+- [ ] Add save-before-send logic in WebSocket adapter for user messages
+- [ ] Add save-after-execute logic in command dispatcher for function results
 - [ ] Create AI command dispatcher to map server commands to Mind functions
 - [ ] Modify central_mind.gd to save checkpoint when transitioning from IDLE to PROCESSING
-- [ ] Hook project save/open to sync .arrow file content with server
 - [ ] Integrate auto-layout calculation for AI-created nodes at (0,0)
 - [ ] Implement error handling with console logging, rollback one step, and error reporting to server
 - [ ] Implement stop signal handling with rollback to saved checkpoint when operations started
