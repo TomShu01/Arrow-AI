@@ -1,0 +1,36 @@
+Copyright, Licenses & Attributions
+
+# Arrow-AI Backend Server
+
+Copyright (c) 2025 Kushagra Sethi, Sina Khodaveisi, Tom Shu
+
+This server component is part of Arrow-AI and is distributed under the MIT License.
+
+## Third-Party Dependencies
+
+The server uses the following Python packages:
+
+- **FastAPI** (MIT License) - Web framework
+- **Uvicorn** (BSD License) - ASGI server
+- **Pydantic** (MIT License) - Data validation
+- **LangGraph** (MIT License) - Agent orchestration
+- **LangChain** (MIT License) - LLM framework
+- **LangChain OpenAI** (MIT License) - OpenAI integration
+- **LangChain Anthropic** (MIT License) - Anthropic integration
+- **LangChain Google GenAI** (MIT License) - Google GenAI integration
+- **LangChain Community** (Apache 2.0 License) - Community integrations
+- **Python-Dotenv** (BSD License) - Environment variable management
+- **Websockets** (BSD License) - WebSocket support
+
+All dependencies are compatible with the MIT License and do not require additional attribution beyond package distribution.
+
+For complete license texts, refer to the poetry.lock file or use:
+```bash
+poetry show --tree
+```
+
+## Usage
+
+This server implements the Agent Protocol for AI agent integration with Arrow.
+See arrow_agent_protocol.md for protocol details.
+
