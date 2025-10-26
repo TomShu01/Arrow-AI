@@ -171,8 +171,7 @@ This ensures AI operations only work on real saved/named projects, not the tempo
 ### Update Preferences Panel
 
 - Add "AI Agent" section in preferences
-- WebSocket server host field (default: "localhost")
-- WebSocket server port field (default: 8000)
+- WebSocket server URL field (default: "wss://arrow-ai.onrender.com/ws/chat")
 - Auto-connect on startup checkbox
 - Save/load from configuration file
 
@@ -393,7 +392,7 @@ func update_project_entry(node_id: int) -> int
 - [x] Create AI state manager singleton with IDLE/PROCESSING/EXECUTING states
 - [x] Create WebSocket adapter for server communication with polling in _process()
 - [x] Create AI chat panel UI scene and script with collapsible sidebar design
-- [x] Add AI settings section to preferences panel for WebSocket host:port configuration
+- [x] Add AI settings section to preferences panel for WebSocket URL configuration
 - [x] Integrate chat panel into main.tscn and main_ui_management.gd
 - [x] Add project ID validation to disable AI panel when get_active_project_id() == -1
 - [x] Implement JSON message protocol with embedded arrow_content in user_message and function_result
