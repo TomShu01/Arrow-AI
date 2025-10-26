@@ -1,0 +1,74 @@
+Copyright, Licenses & Attributions
+
+# NOTE!
+# This file contains copyright and license information for Arrow-AI.
+# Arrow-AI includes both modified and unmodified portions of the original Arrow project.
+
+Arrow-AI is a derivative work that extends the Arrow project with AI capabilities.
+Arrow-AI is available under MIT license.
+
+## Original Arrow Project
+
+This project includes code from Arrow, a visual Game Narrative Design Tool for Godot game engine.
+
+Arrow is developed by Mor. H. Golkar and contributors, available under MIT license.
+Original project: https://github.com/mhgolkar/Arrow (or the original repository)
+
+## Arrow-AI Modifications
+
+Arrow-AI includes:
+- Modifications to the original Arrow codebase
+- Additional server-side components (Python FastAPI backend)
+- AI agent integration features
+- Protocol and communication enhancements
+
+The Arrow-AI modifications and additions are Copyright (c) 2025 Kushagra Sethi, Sina Khodaveisi, Tom Shu
+
+## Licenses
+
+This software is distributed under the MIT License. A copy of the license is included in the LICENSE file.
+
+[Disclaimer]
+
+This document, including the explanations of license terms and their implications do not constitute legal advice.
+It reflects our team's understanding of license terms for this particular project.
+Authors of this project disclaim any responsibility regarding correctness and/or sufficiency of copyright information for derivatives or works based on, including or using their product, and/or any damage resulting by such works or information.
+
+## Third-Party Dependencies
+
+### Server Dependencies
+
+The Python server component uses the following libraries:
+- FastAPI (MIT License)
+- Uvicorn (BSD License)
+- Pydantic (MIT License)
+- LangGraph (MIT License)
+- LangChain (MIT License)
+- LangChain OpenAI (MIT License)
+- LangChain Anthropic (MIT License)
+- LangChain Google GenAI (MIT License)
+- LangChain Community (Apache 2.0 License)
+- Python-Dotenv (BSD License)
+- Websockets (BSD License)
+
+All Python dependencies are distributed under permissive open-source licenses compatible with the MIT License.
+
+### Godot Engine
+
+Arrow (and by extension, Arrow-AI) uses Godot Engine, which is available under MIT license.
+For complete Godot licensing information, see: https://godotengine.org/license/
+
+## Attribution
+
+This project is a derivative work based on:
+- Arrow by Mor. H. Golkar and contributors
+
+All original contributions and modifications by Kushagra Sethi, Sina Khodaveisi, and Tom Shu.
+
+## Notices
+
+When redistributing this software, you must:
+1. Include the MIT License from the LICENSE file
+2. Preserve all copyright notices from this file
+3. Include notices for any third-party components you include
+
