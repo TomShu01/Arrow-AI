@@ -778,6 +778,7 @@ mouse_filter = 2
 theme = ExtResource("1_nah4y")
 
 [node name="Inspector" type="PanelContainer" parent="FloatingTools/Control"]
+visible = false
 layout_mode = 1
 anchors_preset = -1
 anchor_left = 0.4
