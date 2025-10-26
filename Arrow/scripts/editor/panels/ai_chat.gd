@@ -23,11 +23,19 @@ signal request_mind()
 @onready var StopButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Stop
 @onready var ClearButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Clear
 @onready var CloseButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Close
+@onready var ResizeHandle = $/root/Main/Editor/Centre_Wrapper/ResizeHandle
 
 # Chat settings
 var _AUTOSCROLL: bool = true
 var _chat_history: Array = []  # Stores chat messages for context
 var _current_ai_message: String = ""  # Accumulator for streaming AI responses
+
+# Resize functionality
+var _is_resizing: bool = false
+var _resize_start_mouse_pos: Vector2
+var _resize_start_panel_width: float
+const MIN_PANEL_WIDTH: float = 250.0
+const MAX_PANEL_WIDTH: float = 800.0
 
 # Color constants
 const USER_MESSAGE_COLOR = Color("0fcbf4")  # Cyan - from Settings.PEACE_COLOR
@@ -57,6 +65,9 @@ func _register_connections() -> void:
 	
 	# Input field connections
 	InputField.text_submitted.connect(self._on_input_text_submitted, CONNECT_DEFERRED)
+	
+	# Resize handle connections
+	ResizeHandle.gui_input.connect(self._on_resize_handle_input)
 	
 	# AI WebSocket Adapter signals (if available in Main)
 	if Main.has_node("AIWebSocketAdapter"):
@@ -255,6 +266,8 @@ func _on_clear_button_pressed() -> void:
 
 func _on_close_button_pressed() -> void:
 	"""Handle close button click"""
+	# Hide both the panel and resize handle
+	ResizeHandle.set_visible(false)
 	self.request_mind.emit("toggle_ai_chat_panel")
 	pass
 
@@ -394,8 +407,38 @@ func _request_mind(req: String, args = null) -> void:
 	pass
 
 # ============================================================================
-# Panel Management (Draggable & Resizable)
+# Panel Resize Functionality
 # ============================================================================
 
-# Note: Draggable/Resizable helpers are not needed for integrated panels
-# The panel is now part of the main editor layout and managed by HBoxContainer
+func _process(_delta: float) -> void:
+	"""Handle resize dragging"""
+	if _is_resizing:
+		var mouse_pos = get_viewport().get_mouse_position()
+		var mouse_delta = mouse_pos.x - _resize_start_mouse_pos.x
+		
+		# Calculate new width (dragging left = wider panel, right = narrower)
+		var new_width = _resize_start_panel_width - mouse_delta
+		new_width = clamp(new_width, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH)
+		
+		# Update panel width
+		self.custom_minimum_size.x = new_width
+		pass
+
+func _on_resize_handle_input(event: InputEvent) -> void:
+	"""Handle mouse input on the resize handle"""
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				# Start resizing
+				_is_resizing = true
+				_resize_start_mouse_pos = get_viewport().get_mouse_position()
+				_resize_start_panel_width = self.custom_minimum_size.x
+			else:
+				# Stop resizing
+				_is_resizing = false
+	
+	elif event is InputEventMouseMotion and _is_resizing:
+		# Cursor feedback during drag
+		ResizeHandle.mouse_default_cursor_shape = Control.CURSOR_HSIZE
+	
+	pass

@@ -106,6 +106,9 @@ class UiManager :
 				MAIN_UI.inspector_view_toggle.set_deferred("button_pressed", visibility)
 			"ai_chat":
 				MAIN_UI.ai_chat_view_toggle.set_deferred("button_pressed", visibility)
+				# Also toggle the resize handle visibility
+				var resize_handle = Main.get_node("/root/Main/Editor/Centre_Wrapper/ResizeHandle")
+				resize_handle.set_deferred("visible", visibility)
 		# ... then open and track the `panel`
 		PANELS[panel].set_deferred("visible", visibility)
 		track_open_panels(panel, visibility)
