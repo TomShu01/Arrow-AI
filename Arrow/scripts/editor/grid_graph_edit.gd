@@ -476,15 +476,16 @@ func drop_relationship(from_id:int, from_out_slot:int, to_id:int, to_in_slot:int
 func draw_connections_batch(connections_batch:Array) -> void:
 	for connection in connections_batch:
 		if connection is Array && connection.size() == 4:
-			var from_id = connection[0]
-			var to_id = connection[2]
+			# Convert to integers in case server sends floats
+			var from_id = int(connection[0])
+			var from_slot = int(connection[1])
+			var to_id = int(connection[2])
+			var to_slot = int(connection[3])
 			if _DRAWN_NODES_BY_ID.has(from_id) && _DRAWN_NODES_BY_ID.has(to_id):
 				var from = _DRAWN_NODES_BY_ID[ from_id ].name
-				var from_slot = connection[1]
 				var to = _DRAWN_NODES_BY_ID[ to_id ].name
-				var to_slot = connection[3]
-				self.call_deferred("connect_node", from, from_slot, to, to_slot)
-				keep_relationship(connection[0], connection[1], connection[2], connection[3])
+				connect_node(from, from_slot, to, to_slot)
+				keep_relationship(from_id, from_slot, to_id, to_slot)
 			else:
 				printerr("Unexpected Behavior! Trying to connect none-drawn nodes: ", connection)
 	pass
@@ -492,6 +493,8 @@ func draw_connections_batch(connections_batch:Array) -> void:
 func draw_queued_connection() -> void:
 	draw_connections_batch(_CONNECTION_DRAWING_QUEUE)
 	_CONNECTION_DRAWING_QUEUE.clear()
+	# Force GraphEdit to refresh its visual display
+	queue_redraw()
 	pass
 	
 func queue_drawing_connection(connection:Array) -> void:
