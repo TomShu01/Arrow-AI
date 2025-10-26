@@ -399,7 +399,7 @@ func update_project_entry(node_id: int) -> int
 - [x] Add save-before-send logic in WebSocket adapter for user messages
 - [x] Add save-after-execute logic in command dispatcher for function results (only on success)
 - [x] Create AI command dispatcher to map server commands to Mind functions
-- [ ] Modify central_mind.gd to save checkpoint when transitioning from IDLE to PROCESSING
+- [x] Modify central_mind.gd to save checkpoint when transitioning from IDLE to PROCESSING
 - [ ] Integrate auto-layout calculation for AI-created nodes at (0,0)
 - [ ] Implement error handling with console logging, rollback one step, and error reporting to server
 - [ ] Implement stop signal handling with rollback to saved checkpoint when operations started

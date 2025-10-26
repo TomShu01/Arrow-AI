@@ -114,48 +114,20 @@ func _initialize_ai_components() -> void:
 	ai_command_dispatcher.initialize(Mind, ai_websocket_adapter, ai_state_manager)
 	print("[Main] AI Command Dispatcher initialized")
 	
-	# Connect WebSocket adapter signals to state manager
-	ai_websocket_adapter.operation_start_received.connect(_on_ai_operation_start)
-	ai_websocket_adapter.operation_end_received.connect(_on_ai_operation_end)
+	# Set AI component references in Mind for centralized management
+	Mind.AIStateManager = ai_state_manager
+	Mind.AIWebSocketAdapter = ai_websocket_adapter
+	Mind.AICommandDispatcher = ai_command_dispatcher
+	print("[Main] AI components linked to Mind")
 	
-	# Connect state manager stop signal to rollback handler
-	ai_state_manager.operation_stopped.connect(_on_ai_operation_stopped)
+	# Connect WebSocket adapter signals to Mind's AI operation handlers
+	ai_websocket_adapter.operation_start_received.connect(Mind.on_ai_operation_start)
+	ai_websocket_adapter.operation_end_received.connect(Mind.on_ai_operation_end)
+	
+	# Connect state manager stop signal to Mind's rollback handler
+	ai_state_manager.operation_stopped.connect(Mind.on_ai_operation_stopped)
 	
 	print("[Main] AI components fully initialized and connected")
-	pass
-
-func _on_ai_operation_start(request_id: String) -> void:
-	"""Handle AI operation start - save checkpoint"""
-	if ai_state_manager and Mind:
-		# Save checkpoint at current history index
-		var history_index = Mind._HISTORY.INDEX if Mind._HISTORY else -1
-		ai_state_manager.start_operation(request_id, history_index)
-		print("[Main] AI operation started, checkpoint saved at index ", history_index)
-	pass
-
-func _on_ai_operation_end() -> void:
-	"""Handle AI operation end - return to IDLE"""
-	if ai_state_manager:
-		ai_state_manager.end_operation()
-		print("[Main] AI operation ended")
-	pass
-
-func _on_ai_operation_stopped() -> void:
-	"""Handle AI operation stop - rollback to saved checkpoint"""
-	if ai_state_manager and Mind:
-		var checkpoint_index = ai_state_manager.get_saved_checkpoint_index()
-		if checkpoint_index >= 0:
-			# Rollback to the saved checkpoint
-			if Mind.has_method("history_go_to"):
-				Mind.history_go_to(checkpoint_index)
-				print("[Main] Rolled back to checkpoint index ", checkpoint_index)
-			else:
-				printerr("[Main] Mind does not have history_go_to method")
-			
-			# Clear the checkpoint
-			ai_state_manager.clear_checkpoint()
-		else:
-			print("[Main] No checkpoint to rollback to")
 	pass
 
 func set_quick_preferences(preference:String, new_state:bool, refresh_view:bool = true) -> void:

@@ -56,6 +56,11 @@ class Mind :
 	# AI Resource Wrappers for convenient command execution
 	var _resource_wrappers: ResourceWrappers = null
 	
+	# AI Components (set by Main after initialization)
+	var AIStateManager = null
+	var AIWebSocketAdapter = null
+	var AICommandDispatcher = null
+	
 	# the active project (in-memory)
 	var _PROJECT:Dictionary = {}
 	var _CURRENT_OPEN_SCENE_ID:int = -1
@@ -496,6 +501,72 @@ class Mind :
 			"INDEX": -1,
 		}
 		pass
+	
+	# ============================================================================
+	# AI Operation Management
+	# ============================================================================
+	
+	func on_ai_operation_start(request_id: String) -> void:
+		"""
+		Handle AI operation start - save checkpoint for potential rollback
+		Called when transitioning from IDLE to PROCESSING state
+		"""
+		if not AIStateManager:
+			printerr("[Mind] Cannot start AI operation: AIStateManager not initialized")
+			return
+		
+		# Save checkpoint at current history index
+		var history_index = _HISTORY.INDEX
+		AIStateManager.start_operation(request_id, history_index)
+		print("[Mind] AI operation started (", request_id, ") - Checkpoint saved at history index ", history_index)
+		pass
+	
+	func on_ai_operation_end() -> void:
+		"""
+		Handle AI operation end - return to IDLE state
+		Called when AI completes all operations successfully
+		"""
+		if not AIStateManager:
+			printerr("[Mind] Cannot end AI operation: AIStateManager not initialized")
+			return
+		
+		AIStateManager.end_operation()
+		print("[Mind] AI operation ended - State returned to IDLE")
+		pass
+	
+	func on_ai_operation_stopped() -> void:
+		"""
+		Handle AI operation stop - rollback to saved checkpoint
+		Called when user manually stops AI operation or on critical error
+		"""
+		if not AIStateManager:
+			printerr("[Mind] Cannot stop AI operation: AIStateManager not initialized")
+			return
+		
+		var checkpoint_index = AIStateManager.get_saved_checkpoint_index()
+		if checkpoint_index >= 0 and checkpoint_index < _HISTORY.MEMORY.size():
+			# Rollback to the saved checkpoint by rotating history
+			var steps_back = _HISTORY.INDEX - checkpoint_index
+			if steps_back > 0:
+				# Use history_rotate to go back to checkpoint
+				for i in range(steps_back):
+					history_rotate(-1)  # Rotate backwards one step at a time
+				print("[Mind] Rolled back to checkpoint index ", checkpoint_index, " (", steps_back, " steps)")
+			elif steps_back < 0:
+				printerr("[Mind] Warning: Current index is before checkpoint (", _HISTORY.INDEX, " < ", checkpoint_index, ")")
+			else:
+				print("[Mind] Already at checkpoint index ", checkpoint_index)
+			
+			# Clear the checkpoint after rollback
+			AIStateManager.clear_checkpoint()
+		else:
+			if checkpoint_index < 0:
+				print("[Mind] No checkpoint to rollback to")
+			else:
+				printerr("[Mind] Invalid checkpoint index: ", checkpoint_index, " (history size: ", _HISTORY.MEMORY.size(), ")")
+		pass
+	
+	# ============================================================================
 	
 	func get_current_view_state() -> Array:
 		var current = Helpers.Utils.vector2_to_array( Grid.get_scroll_offset() )
