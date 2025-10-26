@@ -100,9 +100,10 @@ IMPORTANT: Work through these steps IN ORDER. After completing each step with a 
     # Invoke the executor agent
     # The agent has its own internal loop and will work through all tasks
     try:
-        result = await agent_executor.ainvoke({
-            "messages": [{"role": "user", "content": execution_prompt}]
-        })
+        result = await agent_executor.ainvoke(
+            {"messages": [{"role": "user", "content": execution_prompt}]},
+            config={"recursion_limit": 100}
+        )
         
         # Extract the final response from the agent
         messages = result.get("messages", [])
