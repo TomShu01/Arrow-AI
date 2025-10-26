@@ -9,9 +9,9 @@ extends RefCounted
 class_name LayoutCalculation
 
 # Core reference to the central mind
-var _mind: Node
+var _mind: CentralMind.Mind
 
-func _init(mind: Node):
+func _init(mind: CentralMind.Mind):
 	_mind = mind
 
 # =============================================================================
@@ -25,7 +25,7 @@ func auto_space_new_node(node_id: int, scene_id: int):
 	update_node_position(node_id, new_position)
 
 # Auto-spacing logic for connected nodes
-func auto_space_connected_nodes(node_id: int, scene_id: int):
+func auto_space_connected_nodes(node_id: int, _scene_id: int):
 	var connected_nodes = get_connected_nodes(node_id)
 	var positions = calculate_flow_layout(connected_nodes)
 	for node in connected_nodes:
@@ -112,7 +112,7 @@ func get_connected_nodes(node_id: int) -> Array:
 	return connected_nodes
 
 # Applies layout to entire scene
-func apply_layout_to_scene(scene_id: int, layout: Dictionary):
+func apply_layout_to_scene(_scene_id: int, layout: Dictionary):
 	for node_id in layout.keys():
 		update_node_position(node_id, layout[node_id])
 
@@ -126,38 +126,36 @@ func calculate_optimal_position(node_id: int, scene_nodes: Array) -> Vector2:
 		return Vector2(100, 100)  # Default starting position
 	
 	var node_type = _mind._PROJECT.resources.nodes[node_id].type
-	var base_position = Vector2(100, 100)
-	var spacing = Vector2(200, 150)
 	
-	# Find the rightmost node to place new node to its right
-	var rightmost_x = 0
-	var rightmost_y = 0
+	# Analyze the existing layout to find patterns
+	var layout_info = _analyze_scene_layout(scene_nodes)
 	
-	for node in scene_nodes:
-		if node.position.x > rightmost_x:
-			rightmost_x = node.position.x
-			rightmost_y = node.position.y
-	
-	# Calculate position based on node type
+	# Calculate position based on node type and existing layout
 	match node_type:
 		"entry":
 			# Entry nodes go at the top-left
-			return Vector2(100, 100)
+			return _calculate_entry_position(layout_info)
 		"content", "dialog", "monolog":
-			# Content nodes flow horizontally
-			return Vector2(rightmost_x + spacing.x, rightmost_y)
+			# Content/dialog nodes flow horizontally along the narrative path
+			return _calculate_narrative_position(layout_info, node_type)
 		"hub":
-			# Hub nodes go below their input nodes
-			return Vector2(rightmost_x, rightmost_y + spacing.y)
+			# Hub nodes converge multiple paths
+			return _calculate_hub_position(layout_info)
 		"marker":
-			# Markers go near their related nodes
-			return Vector2(rightmost_x + spacing.x * 0.5, rightmost_y + spacing.y * 0.5)
+			# Markers go near the last node with some offset
+			return _calculate_marker_position(layout_info)
 		"jump":
 			# Jump nodes go to the right of their source
-			return Vector2(rightmost_x + spacing.x, rightmost_y)
+			return _calculate_jump_position(layout_info)
+		"condition", "tag_match", "tag_pass":
+			# Conditional nodes for branching logic
+			return _calculate_conditional_position(layout_info)
+		"variable_update", "tag_edit":
+			# Variable/tag operations positioned between narrative nodes
+			return _calculate_operation_position(layout_info)
 		_:
-			# Default: place to the right
-			return Vector2(rightmost_x + spacing.x, rightmost_y)
+			# Default: place to the right with smart spacing
+			return _calculate_default_position(layout_info)
 
 # Calculates flow layout for connected nodes
 func calculate_flow_layout(connected_nodes: Array) -> Dictionary:
@@ -250,3 +248,229 @@ func calculate_scene_layout(scene_nodes: Array) -> Dictionary:
 # Helper function to get maximum of three values
 func max(a: int, b: int, c: int) -> int:
 	return max(max(a, b), c)
+
+# =============================================================================
+# SMART AUTO-LAYOUT FUNCTIONS (FOR WEBSOCKET NODES)
+# =============================================================================
+
+# Analyzes the current scene layout to understand positioning patterns
+func _analyze_scene_layout(scene_nodes: Array) -> Dictionary:
+	var info = {
+		"rightmost_position": Vector2(0, 0),
+		"rightmost_node": null,
+		"average_y": 100,
+		"entry_position": Vector2(100, 100),
+		"has_entry": false,
+		"horizontal_spacing": [],
+		"vertical_spacing": [],
+		"flow_direction": Vector2.RIGHT,
+		"nodes_by_row": {},  # Group nodes by approximate Y position
+		"last_in_flow": null  # The last node in the main narrative flow
+	}
+	
+	if scene_nodes.size() == 0:
+		return info
+	
+	# Find rightmost node and collect spacing information
+	var sum_y = 0
+	var positions = []
+	
+	for node in scene_nodes:
+		positions.append(node.position)
+		sum_y += node.position.y
+		
+		if node.position.x > info.rightmost_position.x:
+			info.rightmost_position = node.position
+			info.rightmost_node = node
+		
+		if node.type == "entry":
+			info.has_entry = true
+			info.entry_position = node.position
+	
+	# Calculate average Y position
+	if scene_nodes.size() > 0:
+		info.average_y = sum_y / scene_nodes.size()
+	
+	# Calculate typical spacing by analyzing existing nodes
+	positions.sort_custom(func(a, b): return a.x < b.x)
+	for i in range(positions.size() - 1):
+		var h_spacing = positions[i + 1].x - positions[i].x
+		if h_spacing > 0:
+			info.horizontal_spacing.append(h_spacing)
+	
+	# Sort by Y to find vertical spacing
+	var positions_by_y = positions.duplicate()
+	positions_by_y.sort_custom(func(a, b): return a.y < b.y)
+	for i in range(positions_by_y.size() - 1):
+		var v_spacing = positions_by_y[i + 1].y - positions_by_y[i].y
+		if v_spacing > 0 and v_spacing < 300:  # Ignore large gaps
+			info.vertical_spacing.append(v_spacing)
+	
+	# Find the last node in the main narrative flow (rightmost connected node)
+	info.last_in_flow = _find_last_in_narrative_flow(scene_nodes)
+	
+	return info
+
+# Finds the last node in the main narrative flow based on connections
+func _find_last_in_narrative_flow(scene_nodes: Array) -> Dictionary:
+	if scene_nodes.size() == 0:
+		return {}
+	
+	# Build a graph of connections
+	var outgoing_count = {}
+	var incoming_count = {}
+	
+	for node in scene_nodes:
+		outgoing_count[node.id] = 0
+		incoming_count[node.id] = 0
+		
+		for connection in node.connections:
+			if connection.size() >= 4:
+				outgoing_count[node.id] += 1
+	
+	# Find nodes with no outgoing connections (potential end nodes)
+	var end_nodes = []
+	for node in scene_nodes:
+		if outgoing_count[node.id] == 0:
+			end_nodes.append(node)
+	
+	# Return the rightmost end node
+	if end_nodes.size() > 0:
+		end_nodes.sort_custom(func(a, b): return a.position.x > b.position.x)
+		return end_nodes[0]
+	
+	# Fallback: return rightmost node
+	var rightmost = scene_nodes[0]
+	for node in scene_nodes:
+		if node.position.x > rightmost.position.x:
+			rightmost = node
+	return rightmost
+
+# Get typical horizontal spacing from layout analysis
+func _get_typical_horizontal_spacing(layout_info: Dictionary) -> float:
+	if layout_info.horizontal_spacing.size() > 0:
+		var sum = 0
+		for spacing in layout_info.horizontal_spacing:
+			sum += spacing
+		return sum / layout_info.horizontal_spacing.size()
+	return 200.0  # Default spacing
+
+# Get typical vertical spacing from layout analysis
+func _get_typical_vertical_spacing(layout_info: Dictionary) -> float:
+	if layout_info.vertical_spacing.size() > 0:
+		var sum = 0
+		for spacing in layout_info.vertical_spacing:
+			sum += spacing
+		return sum / layout_info.vertical_spacing.size()
+	return 150.0  # Default spacing
+
+# Calculate position for entry nodes
+func _calculate_entry_position(layout_info: Dictionary) -> Vector2:
+	if layout_info.has_entry:
+		# Place near existing entry with vertical offset
+		var v_spacing = _get_typical_vertical_spacing(layout_info)
+		return layout_info.entry_position + Vector2(0, v_spacing)
+	return Vector2(100, 100)
+
+# Calculate position for narrative nodes (content, dialog, monolog)
+func _calculate_narrative_position(layout_info: Dictionary, node_type: String) -> Vector2:
+	var h_spacing = _get_typical_horizontal_spacing(layout_info)
+	var _v_spacing = _get_typical_vertical_spacing(layout_info)
+	
+	# Use the last node in the narrative flow as reference
+	if layout_info.last_in_flow != null and not layout_info.last_in_flow.is_empty():
+		var last_pos = layout_info.last_in_flow.position
+		
+		# Different node types get slightly different spacing
+		match node_type:
+			"content":
+				# Content nodes: larger horizontal spacing
+				return last_pos + Vector2(h_spacing * 1.2, 0)
+			"dialog", "monolog":
+				# Dialog nodes: standard horizontal spacing
+				return last_pos + Vector2(h_spacing, 0)
+			_:
+				return last_pos + Vector2(h_spacing, 0)
+	
+	# Fallback: place to the right of the rightmost node
+	return layout_info.rightmost_position + Vector2(h_spacing, 0)
+
+# Calculate position for hub nodes (convergence points)
+func _calculate_hub_position(layout_info: Dictionary) -> Vector2:
+	var h_spacing = _get_typical_horizontal_spacing(layout_info)
+	var v_spacing = _get_typical_vertical_spacing(layout_info)
+	
+	# Hubs go to the right and slightly down
+	return layout_info.rightmost_position + Vector2(h_spacing * 0.8, v_spacing * 0.3)
+
+# Calculate position for marker nodes
+func _calculate_marker_position(layout_info: Dictionary) -> Vector2:
+	var h_spacing = _get_typical_horizontal_spacing(layout_info)
+	var v_spacing = _get_typical_vertical_spacing(layout_info)
+	
+	# Markers go near the last node with offset
+	return layout_info.rightmost_position + Vector2(h_spacing * 0.6, v_spacing * 0.4)
+
+# Calculate position for jump nodes
+func _calculate_jump_position(layout_info: Dictionary) -> Vector2:
+	var h_spacing = _get_typical_horizontal_spacing(layout_info)
+	
+	# Jumps flow horizontally
+	return layout_info.rightmost_position + Vector2(h_spacing, 0)
+
+# Calculate position for conditional nodes (condition, tag_match, tag_pass)
+func _calculate_conditional_position(layout_info: Dictionary) -> Vector2:
+	var h_spacing = _get_typical_horizontal_spacing(layout_info)
+	var v_spacing = _get_typical_vertical_spacing(layout_info)
+	
+	# Conditionals go to the right and slightly down to show branching
+	return layout_info.rightmost_position + Vector2(h_spacing, v_spacing * 0.5)
+
+# Calculate position for operation nodes (variable_update, tag_edit)
+func _calculate_operation_position(layout_info: Dictionary) -> Vector2:
+	var h_spacing = _get_typical_horizontal_spacing(layout_info)
+	var v_spacing = _get_typical_vertical_spacing(layout_info)
+	
+	# Operations positioned slightly below the flow
+	return layout_info.rightmost_position + Vector2(h_spacing * 0.7, v_spacing * 0.6)
+
+# Calculate default position for unknown node types
+func _calculate_default_position(layout_info: Dictionary) -> Vector2:
+	var h_spacing = _get_typical_horizontal_spacing(layout_info)
+	
+	# Default: continue the horizontal flow
+	return layout_info.rightmost_position + Vector2(h_spacing, 0)
+
+# =============================================================================
+# PUBLIC API FOR AUTO-LAYOUT FROM WEBSOCKET
+# =============================================================================
+
+# Calculate smart position for a new node being created from websocket
+# This is the main entry point for auto-layout from the dispatcher
+func calculate_smart_position_for_new_node(node_type: String, scene_id: int) -> Vector2:
+	var scene_nodes = get_scene_nodes(scene_id)
+	
+	if scene_nodes.size() == 0:
+		return Vector2(100, 100)
+	
+	# Analyze layout
+	var layout_info = _analyze_scene_layout(scene_nodes)
+	
+	# Calculate position based on type
+	match node_type:
+		"entry":
+			return _calculate_entry_position(layout_info)
+		"content", "dialog", "monolog":
+			return _calculate_narrative_position(layout_info, node_type)
+		"hub":
+			return _calculate_hub_position(layout_info)
+		"marker":
+			return _calculate_marker_position(layout_info)
+		"jump":
+			return _calculate_jump_position(layout_info)
+		"condition", "tag_match", "tag_pass":
+			return _calculate_conditional_position(layout_info)
+		"variable_update", "tag_edit":
+			return _calculate_operation_position(layout_info)
+		_:
+			return _calculate_default_position(layout_info)

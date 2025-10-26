@@ -31,3 +31,4 @@ class PlanExecute(TypedDict):
     function_result: Optional[Dict[str, Any]]  # Result from client
     current_scene_id: Optional[int]  # Current scene context
     arrow_file: Optional[str]  # Current arrow file data as JSON string
+    selected_node_ids: Optional[List[int]]  # IDs of nodes selected in the editor

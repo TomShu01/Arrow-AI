@@ -103,7 +103,7 @@ func _initialize_ai_components() -> void:
 	ai_websocket_adapter.set_name("AIWebSocketAdapter")
 	
 	# Get WebSocket URL from configuration
-	var ws_url = Configs.CONFIRMED.get("ai_websocket_url", "wss://arrow-ai.onrender.com/ws/chat")
+	var ws_url = Configs.CONFIRMED.get("ai_websocket_url", "ws://localhost:8000/ws/chat")
 	ai_websocket_adapter.server_url = ws_url
 	print("[Main] AI WebSocket Adapter initialized (", ws_url, ")")
 	
@@ -114,14 +114,31 @@ func _initialize_ai_components() -> void:
 	ai_command_dispatcher.initialize(Mind, ai_websocket_adapter, ai_state_manager)
 	print("[Main] AI Command Dispatcher initialized")
 	
-	# Connect WebSocket adapter signals to state manager
-	ai_websocket_adapter.operation_start_received.connect(_on_ai_operation_start)
-	ai_websocket_adapter.operation_end_received.connect(_on_ai_operation_end)
+	# Set AI component references in Mind for centralized management
+	Mind.AIStateManager = ai_state_manager
+	Mind.AIWebSocketAdapter = ai_websocket_adapter
+	Mind.AICommandDispatcher = ai_command_dispatcher
+	print("[Main] AI components linked to Mind")
 	
-	# Connect state manager stop signal to rollback handler
-	ai_state_manager.operation_stopped.connect(_on_ai_operation_stopped)
+	# Connect WebSocket adapter signals to Mind's AI operation handlers
+	ai_websocket_adapter.operation_start_received.connect(Mind.on_ai_operation_start)
+	ai_websocket_adapter.operation_end_received.connect(Mind.on_ai_operation_end)
+	
+	# Connect state manager stop signal to Mind's rollback handler
+	ai_state_manager.operation_stopped.connect(Mind.on_ai_operation_stopped)
+	
+	# Connect AI chat panel signals now that adapter is ready
+	_connect_ai_chat_panel()
 	
 	print("[Main] AI components fully initialized and connected")
+	pass
+
+func _connect_ai_chat_panel() -> void:
+	"""Connect AI chat panel to WebSocket adapter signals after initialization"""
+	var ai_chat_panel = get_node_or_null("/root/Main/Editor/Centre_Wrapper/AIChat")
+	if ai_chat_panel and ai_chat_panel.has_method("connect_adapter_signals"):
+		ai_chat_panel.connect_adapter_signals()
+		print("[Main] AI Chat panel signals connected")
 	pass
 
 func _on_ai_operation_start(request_id: String) -> void:

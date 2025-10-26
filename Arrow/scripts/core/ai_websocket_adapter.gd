@@ -42,7 +42,7 @@ enum ConnectionState {
 
 var connection_state: ConnectionState = ConnectionState.DISCONNECTED
 var websocket: WebSocketPeer
-var server_url: String = "wss://arrow-ai.onrender.com/ws/chat"
+var server_url: String = "ws://localhost:8000/ws/chat"
 
 # Message queue for sending messages
 var message_queue: Array[Dictionary] = []
@@ -88,10 +88,14 @@ func _process(_delta: float) -> void:
 			print("[AIWebSocket] Connected to server")
 		
 		# Process incoming messages (limit to one per frame to avoid blocking)
-		if websocket.get_available_packet_count() > 0:
+		var packet_count = websocket.get_available_packet_count()
+		if packet_count > 0:
+			print("[AIWebSocket] Processing ", packet_count, " packet(s)")
 			var packet = websocket.get_packet()
 			if packet.size() > 0:
 				_handle_incoming_data(packet)
+			else:
+				print("[AIWebSocket] WARNING: Received empty packet")
 		
 		# Send queued messages
 		_process_message_queue()
@@ -107,13 +111,13 @@ func _process(_delta: float) -> void:
 			connection_state = ConnectionState.DISCONNECTED
 			connection_state_changed.emit(connection_state)
 			print("[AIWebSocket] Disconnected from server")
-		
-		# Check for connection errors
-		var close_code = websocket.get_close_code()
-		if close_code != 0:
-			var error_msg = "Connection closed with code: " + str(close_code)
-			connection_error.emit(error_msg)
-			print("[AIWebSocket] ", error_msg)
+			
+			# Check for connection errors (only when state changes)
+			var close_code = websocket.get_close_code()
+			if close_code != 0 and close_code != 1000:  # 1000 = normal closure
+				var error_msg = "Connection closed with code: " + str(close_code)
+				connection_error.emit(error_msg)
+				print("[AIWebSocket] ", error_msg)
 
 func connect_to_server(url: String = "") -> bool:
 	"""Connect to the WebSocket server using a full WebSocket URL"""
@@ -161,6 +165,7 @@ func send_message(message: Dictionary) -> void:
 		printerr("[AIWebSocket] Cannot send message: not connected")
 		return
 	
+	print("[AIWebSocket] Message added to queue (queue size: ", message_queue.size() + 1, ")")
 	message_queue.append(message)
 
 func send_file_sync(project_id: int, arrow_content: String, timestamp: int = -1) -> void:
@@ -197,17 +202,15 @@ func send_user_message(message: String, history: Array, selected_node_ids: Array
 	Send user chat message to server with embedded project content
 	Saves project before sending and embeds the complete .arrow file content
 	
-	Message format:
+	Message format (fields at top level, no nesting):
 	{
 	  "type": "user_message",
-	  "data": {
-	    "message": string,
-	    "history": array (chat history),
-	    "selected_node_ids": array of ints,
-	    "current_scene_id": int,
-	    "current_project_id": int,
-	    "arrow_content": string (complete .arrow file as JSON string)
-	  }
+	  "message": string,
+	  "arrow_content": string (complete .arrow file as JSON string),
+	  "history": array of {message: string, output: string},
+	  "selected_node_ids": array of ints,
+	  "current_scene_id": int,
+	  "current_project_id": int
 	}
 	"""
 	# Validate Mind reference before attempting save
@@ -239,18 +242,30 @@ func send_user_message(message: String, history: Array, selected_node_ids: Array
 	elif not arrow_content.is_empty():
 		print("[AIWebSocket] Arrow content embedded (", arrow_content.length(), " bytes)")
 	
-	# Send message with embedded project content
-	send_message({
+	# Convert chat history format from {role, content} to {message, output}
+	var formatted_history = []
+	for i in range(0, history.size(), 2):
+		if i + 1 < history.size():
+			var user_msg = history[i]
+			var ai_msg = history[i + 1]
+			if user_msg.get("role") == "user" and ai_msg.get("role") == "assistant":
+				formatted_history.append({
+					"message": user_msg.get("content", ""),
+					"output": ai_msg.get("content", "")
+				})
+	
+	# Send message with fields at top level (not nested under "data")
+	var msg = {
 		"type": "user_message",
-		"data": {
-			"message": message,
-			"history": history,
-			"selected_node_ids": selected_node_ids,
-			"current_scene_id": current_scene_id,
-			"current_project_id": current_project_id,
-			"arrow_content": arrow_content
-		}
-	})
+		"message": message,
+		"arrow_content": arrow_content,
+		"history": formatted_history,
+		"selected_node_ids": selected_node_ids,
+		"current_scene_id": current_scene_id,
+		"current_project_id": current_project_id
+	}
+	print("[AIWebSocket] Queuing user_message: ", msg.type, ", message length: ", msg.message.length())
+	send_message(msg)
 
 func send_function_result(request_id: String, success: bool, result = null, 
 						 error: String = "", arrow_content: String = "", 
@@ -258,17 +273,14 @@ func send_function_result(request_id: String, success: bool, result = null,
 	"""
 	Send function execution result back to server with embedded project content
 	
-	Message format:
+	Message format (fields at top level, no nesting):
 	{
 	  "type": "function_result",
-	  "data": {
-	    "request_id": string,
-	    "success": bool,
-	    "result": any (on success),
-	    "error": string (on failure),
-	    "arrow_content": string (complete .arrow file as JSON string, on success),
-	    "affected_nodes": dict (on failure, optional)
-	  }
+	  "request_id": string,
+	  "success": bool,
+	  "arrow_content": string (complete .arrow file as JSON string),
+	  "result": any (on success, optional),
+	  "error": string (on failure, optional)
 	}
 	
 	Args:
@@ -277,27 +289,21 @@ func send_function_result(request_id: String, success: bool, result = null,
 	  result: Return value of the function (included if success=true)
 	  error: Error message (included if success=false)
 	  arrow_content: Complete .arrow file content (included if success=true)
-	  affected_nodes: State of affected nodes for error recovery (included on error)
+	  affected_nodes: State of affected nodes for error recovery (not sent to server)
 	"""
 	var message: Dictionary = {
 		"type": "function_result",
-		"data": {
-			"request_id": request_id,
-			"success": success,
-		}
+		"request_id": request_id,
+		"success": success,
+		"arrow_content": arrow_content
 	}
 	
 	if success:
 		if result != null:
-			message.data["result"] = result
-		# Include arrow_content on success (project was saved by dispatcher)
-		if arrow_content != "":
-			message.data["arrow_content"] = arrow_content
+			message["result"] = result
 	else:
 		if error != "":
-			message.data["error"] = error
-		if affected_nodes.size() > 0:
-			message.data["affected_nodes"] = affected_nodes
+			message["error"] = error
 	
 	send_message(message)
 
@@ -324,12 +330,16 @@ func _process_message_queue() -> void:
 	if message_queue.size() > 0 and is_server_connected():
 		var message = message_queue.pop_front()
 		var json_string = JSON.stringify(message)
-		var packet = json_string.to_utf8_buffer()
 		
-		var error = websocket.send(packet)
+		print("[AIWebSocket] Sending message to server (", json_string.length(), " bytes)")
+		print("[AIWebSocket] Message preview: ", json_string.substr(0, 200), "...")
+		
+		# Send as TEXT frame (not binary) - FastAPI expects text frames
+		var error = websocket.send_text(json_string)
 		if error == OK:
-			bytes_sent += packet.size()
+			bytes_sent += json_string.length()
 			messages_sent += 1
+			print("[AIWebSocket] Message sent successfully")
 		else:
 			printerr("[AIWebSocket] Failed to send message: ", error)
 			connection_error.emit("Failed to send message: Error " + str(error))
@@ -340,6 +350,7 @@ func _handle_incoming_data(packet: PackedByteArray) -> void:
 	messages_received += 1
 	
 	var json_string = packet.get_string_from_utf8()
+	print("[AIWebSocket] Raw message received (", packet.size(), " bytes): ", json_string)
 	
 	# Parse JSON
 	var json = JSON.new()
@@ -350,9 +361,10 @@ func _handle_incoming_data(packet: PackedByteArray) -> void:
 		return
 	
 	var data = json.data
+	print("[AIWebSocket] Parsed JSON data: ", data)
 	
 	if not data is Dictionary:
-		printerr("[AIWebSocket] Invalid message format: expected Dictionary")
+		printerr("[AIWebSocket] Invalid message format: expected Dictionary, got ", typeof(data))
 		return
 	
 	# Extract message type
@@ -361,12 +373,13 @@ func _handle_incoming_data(packet: PackedByteArray) -> void:
 		return
 	
 	var message_type = data.type
+	print("[AIWebSocket] Message type: ", message_type)
 	
-	# Extract data
-	var message_data = data.get("data", {})
+	# All fields are at the top level - just pass the entire data object
+	print("[AIWebSocket] Message fields: ", data)
 	
 	# Handle different message types
-	handle_server_message(message_type, message_data)
+	handle_server_message(message_type, data)
 
 func handle_server_message(message_type: String, data: Dictionary) -> void:
 	"""
@@ -374,10 +387,16 @@ func handle_server_message(message_type: String, data: Dictionary) -> void:
 	
 	SERVER → CLIENT MESSAGE TYPES:
 	
-	1. text_chunk: Streaming AI response text for chat display
+	1. connected: Initial handshake confirmation from server
+	   { "type": "connected", "data": { "sessionId": string, "serverTime": int } }
+	
+	2. text_chunk: Streaming AI response text for chat display
 	   { "type": "text_chunk", "data": { "text": string } }
 	
-	2. function_call: Command to execute via AI Command Dispatcher
+	3. chat_response: Complete AI chat response
+	   { "type": "chat_response", "data": { "message": string } }
+	
+	4. function_call: Command to execute via AI Command Dispatcher
 	   { "type": "function_call", "data": { 
 	       "request_id": string, 
 	       "function_name": string,
@@ -393,29 +412,47 @@ func handle_server_message(message_type: String, data: Dictionary) -> void:
 	   - node_connection_replacement
 	   - update_scene_entry, update_project_entry
 	
-	3. operation_start: Begin AI operation (transition to PROCESSING state)
+	5. operation_start: Begin AI operation (transition to PROCESSING state)
 	   { "type": "operation_start", "data": { "request_id": string } }
 	
-	4. operation_end: Complete AI operation (transition to IDLE, trigger save)
-	   { "type": "operation_end" }
+	6. operation_end / end: Complete AI operation (transition to IDLE, trigger save)
+	   { "type": "operation_end" } or { "type": "end" }
 	"""
 	match message_type:
+		"connected":
+			# Server handshake confirmation
+			var session_id = data.get("sessionId", "")
+			var server_time = data.get("serverTime", 0)
+			print("[AIWebSocket] Server connection confirmed (Session: ", session_id, ", Time: ", server_time, ")")
+		
 		"text_chunk":
 			# Streaming AI response text
 			var text = data.get("text", "")
 			if text != "":
+				print("[AIWebSocket] Emitting text_chunk: '", text, "'")
 				text_chunk_received.emit(text)
+		
+		"chat_response":
+			# Complete chat response message - create a new block
+			var message = data.get("message", "")
+			if message != "":
+				print("[AIWebSocket] Received chat_response: '", message, "'")
 		
 		"function_call":
 			# Command to execute via dispatcher
 			var request_id = data.get("request_id", "")
-			var function_name = data.get("function_name", "")
-			var args = data.get("args", {})
+			# Server sends "function" not "function_name"
+			var function_name = data.get("function", data.get("function_name", ""))
+			# Server sends "arguments" not "args"
+			var args = data.get("arguments", data.get("args", {}))
+			
+			print("[AIWebSocket] Function call - request_id: ", request_id, ", function: ", function_name)
 			
 			if request_id != "" and function_name != "":
+				# Emit execution signal (UI display handled by generic message_received at end)
 				function_call_received.emit(request_id, function_name, args)
 			else:
-				printerr("[AIWebSocket] Invalid function_call: missing request_id or function_name")
+				printerr("[AIWebSocket] Invalid function_call: missing request_id or function (got: ", request_id, ", ", function_name, ")")
 		
 		"operation_start":
 			# Begin AI operation (IDLE → PROCESSING)
@@ -425,8 +462,9 @@ func handle_server_message(message_type: String, data: Dictionary) -> void:
 			else:
 				printerr("[AIWebSocket] Invalid operation_start: missing request_id")
 		
-		"operation_end":
+		"operation_end", "end":
 			# Complete AI operation (PROCESSING → IDLE, trigger save)
+			print("[AIWebSocket] Received operation end signal")
 			operation_end_received.emit()
 		
 		_:

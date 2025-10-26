@@ -323,6 +323,8 @@ Or if it cannot be removed:
 
 **Arrow Background:** Nodes connect via output slots (on the right) to input slots (on the left). Some nodes have multiple output slots (like hub for branching, condition for true/false paths). Connections form a directed graph representing narrative flow. Connections are stored in the scene map as arrays: `[from_id, from_slot, to_id, to_slot]`.
 
+**CRITICAL:** Connections are both saved to the data AND drawn on the visual graph editor. Without creating connections, nodes are orphaned and won't execute in the narrative.
+
 **Original Arrow Function:**
 
 ```gdscript
@@ -330,15 +332,14 @@ func update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1)
 // with modification = { "io": { "push": [[from_id, from_slot, to_id, to_slot]] } }
 ```
 
-**Simplified Arguments:**
+**Tool Arguments:**
 
 ```json
 {
-  "from": 12, // or "last_created" or "selected"
-  "from_slot": 0,
-
-  "to": 15, // or "next_created" or target node id
-  "to_slot": 0
+  "from_node_id": 12, // Source node ID
+  "to_node_id": 15, // Target node ID
+  "from_slot": 0, // Optional: output slot on source (default: 0)
+  "to_slot": 0 // Optional: input slot on target (default: 0)
 }
 ```
 
@@ -346,15 +347,63 @@ func update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1)
 
 ```json
 {
-  "success": true
+  "success": true,
+  "message": "Connection created from node 12 to node 15"
 }
 ```
 
-**Simplifications:**
+**Examples:**
 
-- Direct connection specification without wrapping in `update_node_map`
-- Special keywords for node references
-- Most connections use slot 0, so this can be defaulted
+```json
+// Simple connection (most common)
+{
+  "from_node_id": 2,
+  "to_node_id": 4
+}
+
+// Hub node with multiple choices
+// Choice 1 (slot 0) goes to node 10
+{
+  "from_node_id": 5,
+  "to_node_id": 10,
+  "from_slot": 0
+}
+// Choice 2 (slot 1) goes to node 11
+{
+  "from_node_id": 5,
+  "to_node_id": 11,
+  "from_slot": 1
+}
+// Choice 3 (slot 2) goes to node 12
+{
+  "from_node_id": 5,
+  "to_node_id": 12,
+  "from_slot": 2
+}
+
+// Condition node with true/false branches
+// True branch (slot 0) goes to node 20
+{
+  "from_node_id": 8,
+  "to_node_id": 20,
+  "from_slot": 0
+}
+// False branch (slot 1) goes to node 21
+{
+  "from_node_id": 8,
+  "to_node_id": 21,
+  "from_slot": 1
+}
+```
+
+**Usage Notes:**
+
+- Most connections use slot 0 for both sides (simple linear flow)
+- Hub nodes have multiple output slots (one per choice): slot 0, 1, 2, etc.
+- Condition nodes have 2 output slots: 0 = true branch, 1 = false branch
+- Always create connections AFTER creating both nodes
+- The tool internally calls `update_node_map` with the proper `io.push` structure
+- Connections are queued and drawn after nodes are rendered to avoid timing issues
 
 ---
 

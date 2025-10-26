@@ -52,14 +52,31 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # ========== Handle User Message ==========
             if message_type == "user_message":
-                msg = UserMessage(**raw)
+                try:
+                    msg = UserMessage(**raw)
+                except Exception as e:
+                    print(f"[{session_id}] Error parsing user_message: {e}")
+                    await manager.send(session_id, {
+                        "type": "chat_response",
+                        "message": f"Error parsing message: {str(e)}"
+                    })
+                    continue
                 
                 # Update session context with arrow content and metadata
+                print(">>>> msg: ", msg)
                 session_state[session_id]["arrow_content"] = msg.arrow_content
-                if msg.current_scene_id:
+                if msg.current_scene_id is not None:
                     session_state[session_id]["current_scene_id"] = msg.current_scene_id
                 if msg.current_project_id:
                     session_state[session_id]["project_id"] = msg.current_project_id
+
+                # Update tools context with scene_id and arrow_file
+                from Arrow_AI_Backend.agent.tools.arrow_tools import set_context
+                set_context(
+                    session_id=session_id,
+                    scene_id=session_state[session_id].get("current_scene_id"),
+                    arrow_file=msg.arrow_content
+                )
 
                 print(f"[{session_id}] User message: {msg.message}")
                 
@@ -84,7 +101,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             "pending_request_id": None,
                             "function_result": None,
                             "current_scene_id": msg.current_scene_id,
-                            "arrow_file": session_state[session_id].get("arrow_content")
+                            "arrow_file": session_state[session_id].get("arrow_content"),
+                            "selected_node_ids": msg.selected_node_ids
                         }
                         
                         # Invoke supervisor agent
@@ -118,7 +136,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # ========== Handle Function Result ==========
             elif message_type == "function_result":
-                msg = FunctionResultMessage(**raw)
+                try:
+                    msg = FunctionResultMessage(**raw)
+                except Exception as e:
+                    print(f"[{session_id}] Error parsing function_result: {e}")
+                    continue
+                
                 print(f"[{session_id}] Function result for {msg.request_id}: success={msg.success}")
                 
                 # Update session state with the latest arrow content
@@ -128,6 +151,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 from Arrow_AI_Backend.agent.tools.arrow_tools import set_function_result, set_context
                 
                 # Update context with new arrow file content
+                # Note: Preserve scene_id from session_state (set by user message), 
+                # don't replace it with data from function result
                 set_context(
                     session_id=session_id,
                     scene_id=session_state[session_id].get("current_scene_id"),
@@ -150,8 +175,18 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # ========== Handle Stop Signal ==========
             elif message_type == "stop":
-                msg = StopMessage(**raw)
+                try:
+                    msg = StopMessage(**raw)
+                except Exception as e:
+                    print(f"[{session_id}] Error parsing stop message: {e}")
+                    continue
+                
                 print(f"[{session_id}] Stop signal received")
+                
+                # Cancel running agent if any
+                if session_id in running_agents:
+                    running_agents[session_id].cancel()
+                    running_agents.pop(session_id, None)
 
             # ========== Unknown Message Type ==========
             else:
@@ -160,6 +195,19 @@ async def websocket_endpoint(websocket: WebSocket):
     except (WebSocketDisconnect, RuntimeError) as e:
         # Handle both clean disconnects and connection errors
         print(f"[{session_id}] WebSocket disconnected: {e}")
+        
+        # Cancel running agent if any
+        if session_id in running_agents:
+            running_agents[session_id].cancel()
+            running_agents.pop(session_id, None)
+        
+        manager.disconnect(session_id)
+        session_state.pop(session_id, None)
+    except Exception as e:
+        # Handle all other errors (including Pydantic validation errors)
+        print(f"[{session_id}] Error in websocket handler: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         
         # Cancel running agent if any
         if session_id in running_agents:
