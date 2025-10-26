@@ -360,7 +360,7 @@ func update_project_entry(node_id: int) -> int
 ### To-dos
 
 - [x] Create AI state manager singleton with IDLE/PROCESSING/EXECUTING states
-- [ ] Create WebSocket adapter for server communication with polling in _process()
+- [x] Create WebSocket adapter for server communication with polling in _process()
 - [ ] Create AI chat panel UI scene and script with collapsible sidebar design
 - [ ] Add AI settings section to preferences panel for WebSocket host:port configuration
 - [ ] Integrate chat panel into main.tscn and main_ui_management.gd
