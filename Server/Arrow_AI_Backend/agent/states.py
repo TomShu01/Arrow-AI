@@ -22,7 +22,6 @@ class PlanExecute(TypedDict):
     input: str
     complexity: str  # "SIMPLE" or "COMPLEX"
     plan: List[str]  # Remaining tasks to complete
-    completed_tasks: List[str]  # Tasks that have been marked as done
     past_steps: Annotated[List[Tuple], operator.add]
     response: str
     replan_reason: str  # Reason why replanning is needed

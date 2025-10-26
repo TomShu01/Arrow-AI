@@ -51,7 +51,7 @@ async def plan_step(state: PlanExecute):
             "type": "chat_response",
             "message": f"I've updated the plan:\n{plan_text}"
         })
-        return {"plan": steps, "completed_tasks": [], "replan_reason": ""}  # Reset completed tasks and clear replan_reason
+        return {"plan": steps, "replan_reason": ""}  # Reset completed tasks and clear replan_reason
     
     elif state["complexity"] == "COMPLEX":
         # Initial planning for complex queries
@@ -68,7 +68,7 @@ async def plan_step(state: PlanExecute):
         # Simple query: create a single-task plan
         steps = [state["input"]]
     
-    return {"plan": steps, "completed_tasks": []}
+    return {"plan": steps}
 
 
 # ========== Step 4: Execute Task ==========
@@ -94,38 +94,28 @@ async def decide_step(state: PlanExecute):
     """Decide how many tasks are complete and what to do next"""
     decision = await decider.ainvoke(state)
     
-    # Move completed tasks from plan to completed_tasks
     completed_count = decision.completed_count
     current_plan = state["plan"]
-    current_completed = state.get("completed_tasks", [])
     
-    # Move first N tasks from plan to completed_tasks
-    newly_completed = current_plan[:completed_count]
     remaining_plan = current_plan[completed_count:]
-    updated_completed = current_completed + newly_completed
     
-    # Check if replanning is needed
     if decision.is_replan_needed:
         return {
-            "completed_tasks": updated_completed,
             "plan": remaining_plan,
             "replan_reason": decision.replan_reason
         }
     
-    # Check if all tasks are done
     if len(remaining_plan) == 0:
         await manager.send(state["session_id"], {
             "type": "chat_response",
             "message": decision.final_message or "All tasks completed!"
         })
         return {
-            "completed_tasks": updated_completed,
             "plan": remaining_plan,
             "response": decision.final_message or "All tasks completed!"
         }
     
     return {
-        "completed_tasks": updated_completed,
         "plan": remaining_plan
     }
 

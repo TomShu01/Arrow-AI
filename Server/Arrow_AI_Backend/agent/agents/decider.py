@@ -32,8 +32,6 @@ User's goal: {input}
 
 Remaining tasks: {plan}
 
-Completed tasks so far: {completed_tasks}
-
 Last execution: {past_steps}
 
 Your job: Determine how many tasks from the START of the remaining plan are now complete.
