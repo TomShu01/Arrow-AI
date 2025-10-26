@@ -266,8 +266,7 @@ func _on_clear_button_pressed() -> void:
 
 func _on_close_button_pressed() -> void:
 	"""Handle close button click"""
-	# Hide both the panel and resize handle
-	ResizeHandle.set_visible(false)
+	# Request Mind to toggle the panel (UI manager will handle hiding both panel and resize handle)
 	self.request_mind.emit("toggle_ai_chat_panel")
 	pass
 

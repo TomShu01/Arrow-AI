@@ -33,6 +33,9 @@ class ConfigHandler :
 		"window": null,
 		"panels": null,
 		"history_size": 0,
+		"ai_websocket_host": "localhost",
+		"ai_websocket_port": 8000,
+		"ai_auto_connect": false,
 	}
 	# active configurations
 	var TEMPORARY = {} # middle/preview state (active but not confirmed yet)

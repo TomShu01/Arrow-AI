@@ -428,6 +428,55 @@ texture = SubResource("AtlasTexture_6unog")
 expand_mode = 3
 stretch_mode = 5
 
+[node name="AIAgent" type="PanelContainer" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params"]
+layout_mode = 2
+
+[node name="Selector" type="VBoxContainer" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector"]
+layout_mode = 2
+text = "AI Agent"
+
+[node name="WebSocketHost" type="HBoxContainer" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketHost"]
+layout_mode = 2
+text = "WebSocket Host"
+
+[node name="Value" type="LineEdit" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketHost"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "localhost"
+placeholder_text = "localhost"
+
+[node name="WebSocketPort" type="HBoxContainer" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketPort"]
+layout_mode = 2
+text = "WebSocket Port"
+
+[node name="Value" type="SpinBox" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketPort"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 1.0
+max_value = 65535.0
+value = 8000.0
+rounded = true
+
+[node name="AutoConnect" type="HBoxContainer" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/AutoConnect"]
+layout_mode = 2
+text = "Auto-Connect on Startup"
+
+[node name="Value" type="CheckBox" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/AutoConnect"]
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="Authors" type="PanelContainer" parent="Overlays/Control"]
 visible = false
 layout_mode = 1
