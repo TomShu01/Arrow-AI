@@ -1734,6 +1734,8 @@ class Mind :
 									Grid.queue_drawing_connection(connection)
 								# Draw all queued connections (deferred to ensure nodes are rendered first)
 								Grid.call_deferred("draw_queued_connection")
+								# Safety measure: Force GraphEdit visual update
+								Grid.call_deferred("queue_redraw")
 							# Erase removed connections from the grid
 							if connections_to_erase.size() > 0:
 								for connection in connections_to_erase:
