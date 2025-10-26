@@ -2128,7 +2128,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-scroll_offset = Vector2(-10, 0)
 snapping_distance = 5
 right_disconnects = true
 zoom_min = 0.1
@@ -2180,7 +2179,7 @@ layout_mode = 2
 [node name="Title" type="Label" parent="Editor/Centre_Wrapper/AIChat/Sections/Titlebar"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "AI Agent"
+text = "Narrative Assistant"
 vertical_alignment = 1
 
 [node name="Chat" type="PanelContainer" parent="Editor/Centre_Wrapper/AIChat/Sections"]

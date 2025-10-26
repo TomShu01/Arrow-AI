@@ -42,6 +42,7 @@ const USER_MESSAGE_COLOR = Color("0fcbf4")  # Cyan - from Settings.PEACE_COLOR
 const AI_MESSAGE_COLOR = Color.GREEN_YELLOW  # From Settings.INFO_COLOR
 const ERROR_MESSAGE_COLOR = Color("ff0bb1")  # Red - from Settings.WARNING_COLOR
 const SYSTEM_MESSAGE_COLOR = Color.YELLOW  # From Settings.CAUTION_COLOR
+const ANONYMOUS_MESSAGE_COLOR = Color.GRAY
 
 # Message display properties
 const CHAT_MESSAGE_PROPERTIES = {
@@ -109,9 +110,10 @@ func _initialize_panel() -> void:
 	
 	# Display welcome message only if valid project is open
 	if _is_valid_project_open():
-		append_system_message("AI Agent Ready. Connect to server to begin.")
-	else:
-		append_system_message("No project open. Open or create a named project to use AI features.")
+		clear_chat()
+		append_system_message("Connect to assistant to begin.")
+	# else:
+	# 	append_system_message("No project open. Open or create a named project to use AI features.")
 	pass
 
 # ============================================================================
@@ -127,7 +129,11 @@ func _update_ui_from_state() -> void:
 	
 	# Show/hide disabled overlay based on project validation
 	if DisabledOverlay:
-		DisabledOverlay.set_visible(not is_valid_project)
+		if not is_valid_project:
+			clear_chat()
+			DisabledOverlay.set_visible(true)
+		else:
+			DisabledOverlay.set_visible(false)
 	
 	# Disable all interactive controls when no valid project
 	var controls_enabled = is_valid_project
@@ -175,7 +181,7 @@ func append_user_message(message: String) -> void:
 
 func append_ai_message(message: String) -> void:
 	"""Display complete AI message in chat"""
-	_add_message_to_chat("AI", message, AI_MESSAGE_COLOR)
+	_add_message_to_chat("Assistant", message, AI_MESSAGE_COLOR)
 	_chat_history.append({"role": "assistant", "content": message})
 	pass
 
@@ -253,6 +259,11 @@ func append_function_call_block(function_name: String, arguments: Dictionary, re
 	_update_scroll_to_max()
 	pass
 
+func append_anonymous_message(message: String) -> void:
+	"""Display anonymous message in chat"""
+	_add_message_to_chat("", message, Color.WHITE, ANONYMOUS_MESSAGE_COLOR)
+	pass
+
 func append_system_message(message: String) -> void:
 	"""Display system message in chat"""
 	_add_message_to_chat("System", message, SYSTEM_MESSAGE_COLOR)
@@ -263,27 +274,31 @@ func append_error_message(message: String) -> void:
 	_add_message_to_chat("Error", message, ERROR_MESSAGE_COLOR)
 	pass
 
-func _add_message_to_chat(sender: String, message: String, color: Color) -> void:
+func _add_message_to_chat(sender: String, message: String, sender_color: Color, message_color: Color = Color.WHITE) -> void:
 	"""Internal method to add formatted message to chat display (deferred)"""
 	# Create message container
 	var message_box = VBoxContainer.new()
 	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
 	
 	# Create sender label
-	var sender_label = Label.new()
-	sender_label.set_text(sender + ":")
-	sender_label.add_theme_color_override("font_color", color)
-	sender_label.add_theme_font_size_override("font_size", 14)
+	var sender_label
+	if sender != "":
+		sender_label = Label.new()
+		sender_label.set_text(sender + ":")
+		sender_label.add_theme_color_override("font_color", sender_color)
+		sender_label.add_theme_font_size_override("font_size", 14)
 	
 	# Create message label
 	var message_label = Label.new()
 	message_label.set_text(message)
 	for property in CHAT_MESSAGE_PROPERTIES:
 		message_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
-	message_label.add_theme_color_override("font_color", Color.WHITE)
+	message_label.add_theme_color_override("font_color", message_color)
 	
 	# Add to container
-	message_box.add_child(sender_label)
+	if (sender != ""):
+		message_box.add_child(sender_label)
+	
 	message_box.add_child(message_label)
 	
 	# Add spacer between messages
@@ -296,27 +311,30 @@ func _add_message_to_chat(sender: String, message: String, color: Color) -> void
 	self.call_deferred("_update_scroll_to_max")
 	pass
 
-func _add_message_to_chat_immediate(sender: String, message: String, color: Color) -> void:
+func _add_message_to_chat_immediate(sender: String, message: String, sender_color: Color, message_color: Color = Color.WHITE) -> void:
 	"""Internal method to add formatted message to chat display (immediate, for correct ordering)"""
 	# Create message container
 	var message_box = VBoxContainer.new()
 	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
 	
 	# Create sender label
-	var sender_label = Label.new()
-	sender_label.set_text(sender + ":")
-	sender_label.add_theme_color_override("font_color", color)
-	sender_label.add_theme_font_size_override("font_size", 14)
+	var sender_label
+	if sender != "":
+		sender_label = Label.new()
+		sender_label.set_text(sender + ":")
+		sender_label.add_theme_color_override("font_color", sender_color)
+		sender_label.add_theme_font_size_override("font_size", 14)
 	
 	# Create message label
 	var message_label = Label.new()
 	message_label.set_text(message)
 	for property in CHAT_MESSAGE_PROPERTIES:
 		message_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
-	message_label.add_theme_color_override("font_color", Color.WHITE)
+	message_label.add_theme_color_override("font_color", message_color)
 	
 	# Add to container
-	message_box.add_child(sender_label)
+	if sender != "":
+		message_box.add_child(sender_label)
 	message_box.add_child(message_label)
 	
 	# Add spacer between messages
@@ -402,7 +420,6 @@ func clear_chat() -> void:
 		child.queue_free()
 	_chat_history.clear()
 	_current_ai_message = ""
-	append_system_message("Chat cleared.")
 	pass
 
 # ============================================================================
@@ -511,13 +528,16 @@ func _on_connection_state_changed(new_state) -> void:
 		
 		match new_state:
 			2:  # CONNECTED
-				append_system_message("Connected to AI server")
+				clear_chat()
+				append_ai_message("How may I help you?")
 				# Sync project file on connection
 				_sync_project_file()
 			0:  # DISCONNECTED
-				append_system_message("Disconnected from AI server")
+				clear_chat()
+				append_ai_message("Goodbye.")
 			4:  # ERROR
-				append_error_message("Connection error")
+				clear_chat()
+				append_error_message("Connection Error. Please reconnect.")
 	pass
 
 func _on_text_chunk_received(text: String) -> void:
@@ -634,13 +654,13 @@ func notify_project_opened() -> void:
 	"""Called by Mind when a valid project is opened"""
 	_update_ui_from_state()
 	if _is_valid_project_open():
-		append_system_message("Project opened. AI Agent ready.")
+		append_anonymous_message("Connect to begin...")
 	pass
 
 func notify_project_closed() -> void:
 	"""Called by Mind when project is closed (switches to blank)"""
 	_update_ui_from_state()
-	append_system_message("Project closed. Open a named project to use AI features.")
+	# append_system_message("Project closed. Open a named project to use AI features.")
 	pass
 
 # ============================================================================
