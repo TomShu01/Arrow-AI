@@ -827,7 +827,6 @@ mouse_filter = 2
 theme = ExtResource("1_nah4y")
 
 [node name="Inspector" type="PanelContainer" parent="FloatingTools/Control"]
-visible = false
 layout_mode = 1
 anchors_preset = -1
 anchor_left = 0.4
@@ -2253,6 +2252,30 @@ text = "Clear"
 layout_mode = 2
 tooltip_text = "Close AI Chat Panel"
 text = "Close"
+
+[node name="DisabledOverlay" type="Panel" parent="Editor/Centre_Wrapper/AIChat"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Editor/Centre_Wrapper/AIChat/DisabledOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="Label" type="Label" parent="Editor/Centre_Wrapper/AIChat/DisabledOverlay/MarginContainer"]
+layout_mode = 2
+text = "Open or create a named project to use AI features"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
 
 [node name="Bottom" type="PanelContainer" parent="Editor"]
 layout_mode = 2

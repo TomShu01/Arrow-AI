@@ -22,6 +22,7 @@ extends Control
 @onready var ClearButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Clear
 @onready var CloseButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Close
 @onready var ResizeHandle = $/root/Main/Editor/Centre_Wrapper/ResizeHandle
+@onready var DisabledOverlay = $/root/Main/Editor/Centre_Wrapper/AIChat/DisabledOverlay
 
 # Chat settings
 var _AUTOSCROLL: bool = true
@@ -85,8 +86,11 @@ func _initialize_panel() -> void:
 	# Set initial button states
 	_update_ui_from_state()
 	
-	# Display welcome message
-	append_system_message("AI Agent Ready. Connect to server to begin.")
+	# Display welcome message only if valid project is open
+	if _is_valid_project_open():
+		append_system_message("AI Agent Ready. Connect to server to begin.")
+	else:
+		append_system_message("No project open. Open or create a named project to use AI features.")
 	pass
 
 # ============================================================================
@@ -95,9 +99,17 @@ func _initialize_panel() -> void:
 
 func _update_ui_from_state() -> void:
 	"""Update UI elements based on connection and AI state"""
+	var is_valid_project = _is_valid_project_open()
 	var is_server_connected = _is_websocket_connected()
 	var ai_state = _get_ai_state()
 	var is_busy = (ai_state != null and ai_state != 0)  # Not IDLE
+	
+	# Show/hide disabled overlay based on project validation
+	if DisabledOverlay:
+		DisabledOverlay.set_visible(not is_valid_project)
+	
+	# Disable all interactive controls when no valid project
+	var controls_enabled = is_valid_project
 	
 	# Update connection status indicator
 	if is_server_connected:
@@ -107,15 +119,16 @@ func _update_ui_from_state() -> void:
 		ConnectionStatus.set_text("○ Disconnected")
 		ConnectionStatus.add_theme_color_override("font_color", Color.GRAY)
 	
-	# Update button states
-	ConnectButton.set_disabled(is_server_connected)
+	# Update button states (disabled if no valid project)
+	ConnectButton.set_disabled(is_server_connected or not controls_enabled)
 	ConnectButton.set_text("Disconnect" if is_server_connected else "Connect")
 	
-	StopButton.set_visible(is_busy)
-	StopButton.set_disabled(not is_busy)
+	StopButton.set_visible(is_busy and controls_enabled)
+	StopButton.set_disabled(not is_busy or not controls_enabled)
 	
-	SendButton.set_disabled(not is_server_connected or is_busy)
-	InputField.set_editable(is_server_connected and not is_busy)
+	SendButton.set_disabled(not is_server_connected or is_busy or not controls_enabled)
+	InputField.set_editable(is_server_connected and not is_busy and controls_enabled)
+	ClearButton.set_disabled(not controls_enabled)
 	
 	pass
 
@@ -365,43 +378,60 @@ func _get_ai_state():
 func _get_selected_node_ids() -> Array:
 	"""Get IDs of currently selected nodes on grid"""
 	var selected_ids = []
-	if Main.has_node("Mind"):
-		var mind = Main.get_node("Mind")
-		if mind.has_method("get_selected_nodes"):
-			selected_ids = mind.get_selected_nodes()
+	if Main.Mind:
+		if Main.Mind.has_method("get_selected_nodes"):
+			selected_ids = Main.Mind.get_selected_nodes()
 	return selected_ids
 
 func _get_current_scene_id() -> int:
 	"""Get current scene ID"""
-	if Main.has_node("Mind"):
-		var mind = Main.get_node("Mind")
-		if mind.has_method("get_current_scene_id"):
-			return mind.get_current_scene_id()
+	if Main.Mind:
+		if Main.Mind.has_method("get_current_scene_id"):
+			return Main.Mind.get_current_scene_id()
 	return -1
 
 func _get_current_project_id() -> int:
 	"""Get current project ID"""
-	if Main.has_node("Mind"):
-		var mind = Main.get_node("Mind")
-		if mind.has_method("get_project_id"):
-			return mind.get_project_id()
+	if Main.Mind and Main.Mind.ProMan:
+		return Main.Mind.ProMan.get_active_project_id()
 	return -1
+
+func _is_valid_project_open() -> bool:
+	"""Check if a valid named project is currently open"""
+	if Main.Mind and Main.Mind.ProMan:
+		return Main.Mind.ProMan.is_project_listed()
+	return false
 
 func _sync_project_file() -> void:
 	"""Sync current project file to AI server"""
 	if not _is_websocket_connected():
 		return
 	
-	if Main.has_node("Mind"):
-		var mind = Main.get_node("Mind")
-		if mind.has_method("get_project_content_json"):
-			var project_content = mind.get_project_content_json()
-			var project_id = _get_current_project_id()
-			
-			if Main.has_node("AIWebSocketAdapter"):
-				var adapter = Main.get_node("AIWebSocketAdapter")
-				adapter.send_file_sync(project_id, project_content)
-				print("[AIChat] Project file synced to server")
+	if Main.Mind and Main.Mind.has_method("get_project_content_json"):
+		var project_content = Main.Mind.get_project_content_json()
+		var project_id = _get_current_project_id()
+		
+		if Main.has_node("AIWebSocketAdapter"):
+			var adapter = Main.get_node("AIWebSocketAdapter")
+			adapter.send_file_sync(project_id, project_content)
+			print("[AIChat] Project file synced to server")
+	pass
+
+# ============================================================================
+# Project Change Notifications
+# ============================================================================
+
+func notify_project_opened() -> void:
+	"""Called by Mind when a valid project is opened"""
+	_update_ui_from_state()
+	if _is_valid_project_open():
+		append_system_message("Project opened. AI Agent ready.")
+	pass
+
+func notify_project_closed() -> void:
+	"""Called by Mind when project is closed (switches to blank)"""
+	_update_ui_from_state()
+	append_system_message("Project closed. Open a named project to use AI features.")
 	pass
 
 # ============================================================================
