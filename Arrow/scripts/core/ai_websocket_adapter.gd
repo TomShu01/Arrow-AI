@@ -4,6 +4,29 @@
 
 # AI WebSocket Adapter
 # Handles WebSocket communication with the AI server
+#
+# This adapter manages bidirectional communication with the AI server:
+#
+# CLIENT → SERVER MESSAGES:
+# - file_sync: Synchronize project file with server
+# - user_message: Send user chat messages
+# - function_result: Return results of executed function calls
+# - stop: Signal to stop current AI operation
+#
+# SERVER → CLIENT MESSAGES:
+# - text_chunk: Streaming AI response text
+# - function_call: Command to execute (maps to Arrow API functions)
+# - operation_start: Begin AI operation (transition to PROCESSING state)
+# - operation_end: Complete AI operation (transition to IDLE state)
+#
+# SUPPORTED API FUNCTIONS (called via function_call messages):
+# - create_insert_node, quick_insert_node, update_node, remove_node
+# - update_node_map
+# - create_new_scene, update_scene, remove_scene
+# - create_new_variable, update_variable, remove_variable
+# - create_new_character, update_character, remove_character
+# - node_connection_replacement
+# - update_scene_entry, update_project_entry
 
 class_name AIWebSocketAdapter
 extends Node
@@ -139,7 +162,20 @@ func send_message(message: Dictionary) -> void:
 	message_queue.append(message)
 
 func send_file_sync(project_id: int, arrow_content: String, timestamp: int = -1) -> void:
-	"""Send file synchronization message"""
+	"""
+	Send file synchronization message to server
+	Syncs the complete .arrow project file content
+	
+	Message format:
+	{
+	  "type": "file_sync",
+	  "data": {
+	    "project_id": int,
+	    "arrow_content": string (JSON string of .arrow file),
+	    "timestamp": int (unix timestamp)
+	  }
+	}
+	"""
 	if timestamp == -1:
 		timestamp = Time.get_unix_time_from_system()
 	
@@ -154,7 +190,21 @@ func send_file_sync(project_id: int, arrow_content: String, timestamp: int = -1)
 
 func send_user_message(message: String, history: Array, selected_node_ids: Array = [], 
 					   current_scene_id: int = -1, current_project_id: int = -1) -> void:
-	"""Send a user message to the server"""
+	"""
+	Send user chat message to server
+	
+	Message format:
+	{
+	  "type": "user_message",
+	  "data": {
+	    "message": string,
+	    "history": array (chat history),
+	    "selected_node_ids": array of ints,
+	    "current_scene_id": int,
+	    "current_project_id": int
+	  }
+	}
+	"""
 	send_message({
 		"type": "user_message",
 		"data": {
@@ -168,7 +218,28 @@ func send_user_message(message: String, history: Array, selected_node_ids: Array
 
 func send_function_result(request_id: String, success: bool, result = null, 
 						 error: String = "", affected_nodes: Dictionary = {}) -> void:
-	"""Send function execution result to the server"""
+	"""
+	Send function execution result back to server
+	
+	Message format:
+	{
+	  "type": "function_result",
+	  "data": {
+	    "request_id": string,
+	    "success": bool,
+	    "result": any (on success),
+	    "error": string (on failure),
+	    "affected_nodes": dict (on failure, optional)
+	  }
+	}
+	
+	Args:
+	  request_id: Unique identifier for the function call request
+	  success: Whether the function executed successfully
+	  result: Return value of the function (included if success=true)
+	  error: Error message (included if success=false)
+	  affected_nodes: State of affected nodes for error recovery (included on error)
+	"""
 	var message: Dictionary = {
 		"type": "function_result",
 		"data": {
@@ -177,17 +248,27 @@ func send_function_result(request_id: String, success: bool, result = null,
 		}
 	}
 	
-	if success and result != null:
-		message.data["result"] = result
-	elif not success and error != "":
-		message.data["error"] = error
+	if success:
+		if result != null:
+			message.data["result"] = result
+	else:
+		if error != "":
+			message.data["error"] = error
 		if affected_nodes.size() > 0:
 			message.data["affected_nodes"] = affected_nodes
 	
 	send_message(message)
 
 func send_stop_signal() -> void:
-	"""Send stop signal to the server"""
+	"""
+	Send stop signal to abort current AI operation
+	Server will stop processing and client will rollback to operation start checkpoint
+	
+	Message format:
+	{
+	  "type": "stop"
+	}
+	"""
 	send_message({
 		"type": "stop"
 	})
@@ -246,7 +327,36 @@ func _handle_incoming_data(packet: PackedByteArray) -> void:
 	handle_server_message(message_type, message_data)
 
 func handle_server_message(message_type: String, data: Dictionary) -> void:
-	"""Route server messages to appropriate handlers"""
+	"""
+	Route server messages to appropriate handlers
+	
+	SERVER → CLIENT MESSAGE TYPES:
+	
+	1. text_chunk: Streaming AI response text for chat display
+	   { "type": "text_chunk", "data": { "text": string } }
+	
+	2. function_call: Command to execute via AI Command Dispatcher
+	   { "type": "function_call", "data": { 
+	       "request_id": string, 
+	       "function_name": string,
+	       "args": dict 
+	   }}
+	   
+	   Supported function_name values:
+	   - create_insert_node, quick_insert_node, update_node, remove_node
+	   - update_node_map
+	   - create_new_scene, update_scene, remove_scene
+	   - create_new_variable, update_variable, remove_variable
+	   - create_new_character, update_character, remove_character
+	   - node_connection_replacement
+	   - update_scene_entry, update_project_entry
+	
+	3. operation_start: Begin AI operation (transition to PROCESSING state)
+	   { "type": "operation_start", "data": { "request_id": string } }
+	
+	4. operation_end: Complete AI operation (transition to IDLE, trigger save)
+	   { "type": "operation_end" }
+	"""
 	match message_type:
 		"text_chunk":
 			# Streaming AI response text
@@ -255,29 +365,33 @@ func handle_server_message(message_type: String, data: Dictionary) -> void:
 				text_chunk_received.emit(text)
 		
 		"function_call":
-			# Command to execute
+			# Command to execute via dispatcher
 			var request_id = data.get("request_id", "")
 			var function_name = data.get("function_name", "")
 			var args = data.get("args", {})
 			
 			if request_id != "" and function_name != "":
 				function_call_received.emit(request_id, function_name, args)
+			else:
+				printerr("[AIWebSocket] Invalid function_call: missing request_id or function_name")
 		
 		"operation_start":
-			# Set state to PROCESSING
+			# Begin AI operation (IDLE → PROCESSING)
 			var request_id = data.get("request_id", "")
 			if request_id != "":
 				operation_start_received.emit(request_id)
+			else:
+				printerr("[AIWebSocket] Invalid operation_start: missing request_id")
 		
 		"operation_end":
-			# Set state to IDLE, save project
+			# Complete AI operation (PROCESSING → IDLE, trigger save)
 			operation_end_received.emit()
 		
 		_:
 			# Unknown message type
 			printerr("[AIWebSocket] Unknown message type: ", message_type)
 	
-	# Emit generic message received signal
+	# Emit generic message received signal for additional handlers
 	message_received.emit(message_type, data)
 
 # Utility functions
@@ -313,3 +427,51 @@ func reset_stats() -> void:
 	bytes_received = 0
 	messages_sent = 0
 	messages_received = 0
+
+# =============================================================================
+# API REFERENCE SUMMARY
+# =============================================================================
+#
+# This WebSocket adapter provides the communication layer for the Arrow AI system.
+# The AI server can remotely call functions to manipulate the Arrow project through
+# function_call messages. The dispatcher maps these calls to actual Mind functions.
+#
+# COMPLETE API FUNCTION LIST (callable via function_call messages):
+#
+# NODE OPERATIONS:
+#   create_insert_node(type: String, offset: Vector2, scene_id: int = -1, 
+#                      draw: bool = true, name_prefix: String = "", 
+#                      preset: Dictionary = {}) -> int
+#   quick_insert_node(node_type: String, offset: Vector2, connection = null) -> void
+#   update_node(node_id: int, name: String = "", data: Dictionary = {}, 
+#               notes: String = "", is_auto_update: bool = false) -> void
+#   remove_node(node_id: int, forced: bool = false) -> bool
+#   update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1) -> void
+#
+# SCENE OPERATIONS:
+#   create_new_scene(is_macro: bool = false) -> void
+#   update_scene(scene_id: int, name: String = "", entry: int = -1, 
+#                macro: bool = null, notes: String = "") -> void
+#   remove_scene(scene_id: int, forced: bool = false) -> bool
+#
+# VARIABLE OPERATIONS:
+#   create_new_variable(type: String) -> void
+#   update_variable(variable_id: int, name: String = "", type: String = "", 
+#                   initial_value = null, notes: String = "") -> void
+#   remove_variable(variable_id: int, forced: bool = false) -> bool
+#
+# CHARACTER OPERATIONS:
+#   create_new_character() -> void
+#   update_character(character_id: int, name: String = "", color: String = "", 
+#                    tags: Dictionary = {}, notes: String = "") -> void
+#   remove_character(character_id: int, forced: bool = false) -> bool
+#
+# UTILITY OPERATIONS:
+#   node_connection_replacement(conversation_table: Dictionary, 
+#                               remake_lost_connections: bool = true) -> Array
+#
+# ENTRY POINT OPERATIONS:
+#   update_scene_entry(node_id: int) -> int
+#   update_project_entry(node_id: int) -> int
+#
+# =============================================================================
