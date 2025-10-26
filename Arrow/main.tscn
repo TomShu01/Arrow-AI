@@ -438,33 +438,18 @@ layout_mode = 2
 layout_mode = 2
 text = "AI Agent"
 
-[node name="WebSocketHost" type="HBoxContainer" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector"]
+[node name="WebSocketURL" type="HBoxContainer" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketHost"]
+[node name="Label" type="Label" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketURL"]
 layout_mode = 2
-text = "Host"
+text = "WebSocket URL"
 
-[node name="Value" type="LineEdit" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketHost"]
+[node name="Value" type="LineEdit" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketURL"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "localhost"
-placeholder_text = "localhost"
-
-[node name="WebSocketPort" type="HBoxContainer" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketPort"]
-layout_mode = 2
-text = "Port"
-
-[node name="Value" type="SpinBox" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketPort"]
-layout_mode = 2
-size_flags_horizontal = 3
-min_value = 1.0
-max_value = 65535.0
-value = 8000.0
-rounded = true
+text = "wss://arrow-ai.onrender.com/ws/chat"
+placeholder_text = "wss://arrow-ai.onrender.com/ws/chat"
 
 [node name="AutoConnect" type="HBoxContainer" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector"]
 layout_mode = 2

@@ -102,12 +102,10 @@ func _initialize_ai_components() -> void:
 	add_child(ai_websocket_adapter)
 	ai_websocket_adapter.set_name("AIWebSocketAdapter")
 	
-	# Get WebSocket settings from configuration
-	var ws_host = Configs.CONFIRMED.get("ai_websocket_host", "localhost")
-	var ws_port = Configs.CONFIRMED.get("ai_websocket_port", 8000)
-	ai_websocket_adapter.server_host = ws_host
-	ai_websocket_adapter.server_port = ws_port
-	print("[Main] AI WebSocket Adapter initialized (", ws_host, ":", ws_port, ")")
+	# Get WebSocket URL from configuration
+	var ws_url = Configs.CONFIRMED.get("ai_websocket_url", "wss://arrow-ai.onrender.com/ws/chat")
+	ai_websocket_adapter.server_url = ws_url
+	print("[Main] AI WebSocket Adapter initialized (", ws_url, ")")
 	
 	# Create Command Dispatcher
 	ai_command_dispatcher = AICommandDispatcher.new()

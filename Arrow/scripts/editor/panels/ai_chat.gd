@@ -298,10 +298,9 @@ func _on_connect_button_pressed() -> void:
 		# Connect using settings from configuration
 		if Main.has_node("AIWebSocketAdapter"):
 			var adapter = Main.get_node("AIWebSocketAdapter")
-			# Get host and port from configuration (defaults if not found)
-			var host = Main.Configs.CONFIRMED.get("ai_websocket_host", "localhost")
-			var port = Main.Configs.CONFIRMED.get("ai_websocket_port", 8000)
-			adapter.connect_to_server(host, port)
+			# Get WebSocket URL from configuration (default if not found)
+			var ws_url = Main.Configs.CONFIRMED.get("ai_websocket_url", "wss://arrow-ai.onrender.com/ws/chat")
+			adapter.connect_to_server(ws_url)
 		else:
 			append_error_message("AIWebSocketAdapter not found!")
 	pass

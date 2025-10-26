@@ -42,8 +42,7 @@ enum ConnectionState {
 
 var connection_state: ConnectionState = ConnectionState.DISCONNECTED
 var websocket: WebSocketPeer
-var server_host: String = "localhost"
-var server_port: int = 8000
+var server_url: String = "wss://arrow-ai.onrender.com/ws/chat"
 
 # Message queue for sending messages
 var message_queue: Array[Dictionary] = []
@@ -116,24 +115,27 @@ func _process(_delta: float) -> void:
 			connection_error.emit(error_msg)
 			print("[AIWebSocket] ", error_msg)
 
-func connect_to_server(host: String = "", port: int = -1) -> bool:
-	"""Connect to the WebSocket server"""
+func connect_to_server(url: String = "") -> bool:
+	"""Connect to the WebSocket server using a full WebSocket URL"""
 	
-	# Use provided host/port or defaults
-	server_host = host if host != "" else server_host
-	server_port = port if port != -1 else server_port
+	# Use provided URL or default
+	if url != "":
+		server_url = url
 	
-	# Validate inputs
-	if server_host == "" or server_port <= 0:
-		printerr("[AIWebSocket] Invalid host or port: ", server_host, ":", server_port)
+	# Validate URL
+	if server_url == "":
+		printerr("[AIWebSocket] Invalid WebSocket URL: empty")
 		return false
 	
-	# Create connection URL
-	var url = "ws://%s:%d" % [server_host, server_port]
-	print("[AIWebSocket] Connecting to ", url)
+	# Validate URL format (should start with ws:// or wss://)
+	if not (server_url.begins_with("ws://") or server_url.begins_with("wss://")):
+		printerr("[AIWebSocket] Invalid WebSocket URL format: ", server_url, " (must start with ws:// or wss://)")
+		return false
+	
+	print("[AIWebSocket] Connecting to ", server_url)
 	
 	# Initialize connection
-	var error = websocket.connect_to_url(url)
+	var error = websocket.connect_to_url(server_url)
 	if error != OK:
 		connection_state = ConnectionState.ERROR
 		connection_state_changed.emit(connection_state)

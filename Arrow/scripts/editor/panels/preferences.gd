@@ -24,8 +24,7 @@ const PREF_PANEL_FIELDS = {
 	"app_local_dir_browse": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/WorkDir/Selector/Tools/Select",
 	"app_local_dir_reset_menu": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/WorkDir/Selector/Tools/Reset",
 	"history_size": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/History/Selector/Size/Value",
-	"ai_websocket_host": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketHost/Value",
-	"ai_websocket_port": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketPort/Value",
+	"ai_websocket_url": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketURL/Value",
 	"ai_auto_connect": "/root/Main/Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/AutoConnect/Value",
 }
 var ACTIONS = {}
@@ -36,8 +35,7 @@ const FIELDS_VALUE_PROPERTY = {
 	"language": "selected",
 	"app_local_dir_path": "text",
 	"history_size": "value",
-	"ai_websocket_host": "text",
-	"ai_websocket_port": "value",
+	"ai_websocket_url": "text",
 	"ai_auto_connect": "button_pressed",
 }
 
@@ -107,9 +105,7 @@ func register_connections() -> void:
 	FIELDS.history_size.get_line_edit().text_changed.connect(self.preprocess_and_emit_modification_signal.bind("history_size"), CONNECT_DEFERRED)
 	FIELDS.history_size.value_changed.connect(self.preprocess_and_emit_modification_signal.bind("history_size"), CONNECT_DEFERRED)
 	# AI Agent fields
-	FIELDS.ai_websocket_host.text_changed.connect(self.preprocess_and_emit_modification_signal.bind("ai_websocket_host"), CONNECT_DEFERRED)
-	FIELDS.ai_websocket_port.get_line_edit().text_changed.connect(self.preprocess_and_emit_modification_signal.bind("ai_websocket_port"), CONNECT_DEFERRED)
-	FIELDS.ai_websocket_port.value_changed.connect(self.preprocess_and_emit_modification_signal.bind("ai_websocket_port"), CONNECT_DEFERRED)
+	FIELDS.ai_websocket_url.text_changed.connect(self.preprocess_and_emit_modification_signal.bind("ai_websocket_url"), CONNECT_DEFERRED)
 	FIELDS.ai_auto_connect.toggled.connect(self.preprocess_and_emit_modification_signal.bind("ai_auto_connect"), CONNECT_DEFERRED)
 	pass
 

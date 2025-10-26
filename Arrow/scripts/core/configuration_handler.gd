@@ -33,8 +33,7 @@ class ConfigHandler :
 		"window": null,
 		"panels": null,
 		"history_size": 0,
-		"ai_websocket_host": "localhost",
-		"ai_websocket_port": 8000,
+		"ai_websocket_url": "wss://arrow-ai.onrender.com/ws/chat",
 		"ai_auto_connect": false,
 	}
 	# active configurations
