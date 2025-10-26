@@ -2094,7 +2094,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-scroll_offset = Vector2(-354, 0)
+scroll_offset = Vector2(-10, 0)
 snapping_distance = 5
 right_disconnects = true
 zoom_min = 0.1
@@ -2124,6 +2124,12 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("26_g6oda")
 
+[node name="ResizeHandle" type="Panel" parent="Editor/Centre_Wrapper"]
+visible = false
+custom_minimum_size = Vector2(6, 0)
+layout_mode = 2
+mouse_default_cursor_shape = 10
+
 [node name="AIChat" type="PanelContainer" parent="Editor/Centre_Wrapper"]
 visible = false
 custom_minimum_size = Vector2(350, 0)
@@ -2138,28 +2144,11 @@ layout_mode = 2
 [node name="Titlebar" type="HBoxContainer" parent="Editor/Centre_Wrapper/AIChat/Sections"]
 layout_mode = 2
 
-[node name="Drag" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Titlebar"]
+[node name="Title" type="Label" parent="Editor/Centre_Wrapper/AIChat/Sections/Titlebar"]
 layout_mode = 2
 size_flags_horizontal = 3
-focus_mode = 0
-mouse_default_cursor_shape = 6
-disabled = true
 text = "AI Agent"
-icon = SubResource("AtlasTexture_gxh6s")
-flat = true
-alignment = 0
-expand_icon = true
-
-[node name="Resizer" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Titlebar"]
-custom_minimum_size = Vector2(24, 0)
-layout_mode = 2
-focus_mode = 0
-mouse_default_cursor_shape = 11
-disabled = true
-icon = SubResource("AtlasTexture_3t2oi")
-flat = true
-icon_alignment = 1
-expand_icon = true
+vertical_alignment = 1
 
 [node name="Chat" type="PanelContainer" parent="Editor/Centre_Wrapper/AIChat/Sections"]
 layout_mode = 2
