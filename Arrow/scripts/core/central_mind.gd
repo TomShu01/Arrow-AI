@@ -8,7 +8,7 @@ class_name CentralMind
 
 const PREF_PANEL = "/root/Main/Overlays/Control/Preferences"
 const EDITOR = "/root/Main/Editor"
-const GRID = "/root/Main/Editor/Center/Grid"
+const GRID = "/root/Main/Editor/Centre_Wrapper/Center/Grid"
 const INSPECTOR = "/root/Main/FloatingTools/Control/Inspector"
 const QUERY = "/root/Main/Editor/Bottom/Bar/Query"
 const GRID_CONTEXT_MENU = "/root/Main/FloatingTools/Control/Context"

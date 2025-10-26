@@ -12,7 +12,7 @@ signal request_mind()
 @onready var TheViewport = get_viewport()
 @onready var GridContextMenu = $/root/Main/FloatingTools/Control/Context
 
-@onready var Minimap = $/root/Main/Editor/Center/MiniMap/Area
+@onready var Minimap = $/root/Main/Editor/Centre_Wrapper/Center/MiniMap/Area
 @onready var MinimapBox = Minimap.get_parent()
 const USE_ARROW_MINIMAP:bool = Settings.CLASSIC_MINIMAP_ENABLED
 

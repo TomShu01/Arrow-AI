@@ -1,0 +1,477 @@
+# Arrow-AI
+# Game Narrative Design Tool w/ AI
+# Kushagra Sethi
+
+# AI WebSocket Adapter
+# Handles WebSocket communication with the AI server
+#
+# This adapter manages bidirectional communication with the AI server:
+#
+# CLIENT → SERVER MESSAGES:
+# - file_sync: Synchronize project file with server
+# - user_message: Send user chat messages
+# - function_result: Return results of executed function calls
+# - stop: Signal to stop current AI operation
+#
+# SERVER → CLIENT MESSAGES:
+# - text_chunk: Streaming AI response text
+# - function_call: Command to execute (maps to Arrow API functions)
+# - operation_start: Begin AI operation (transition to PROCESSING state)
+# - operation_end: Complete AI operation (transition to IDLE state)
+#
+# SUPPORTED API FUNCTIONS (called via function_call messages):
+# - create_insert_node, quick_insert_node, update_node, remove_node
+# - update_node_map
+# - create_new_scene, update_scene, remove_scene
+# - create_new_variable, update_variable, remove_variable
+# - create_new_character, update_character, remove_character
+# - node_connection_replacement
+# - update_scene_entry, update_project_entry
+
+class_name AIWebSocketAdapter
+extends Node
+
+# Connection state
+enum ConnectionState {
+	DISCONNECTED,
+	CONNECTING,
+	CONNECTED,
+	CLOSING,
+	ERROR
+}
+
+var connection_state: ConnectionState = ConnectionState.DISCONNECTED
+var websocket: WebSocketPeer
+var server_host: String = "localhost"
+var server_port: int = 8000
+
+# Message queue for sending messages
+var message_queue: Array[Dictionary] = []
+
+# Signals
+signal connection_state_changed(new_state: ConnectionState)
+signal message_received(message_type: String, data: Dictionary)
+signal text_chunk_received(text: String)
+signal function_call_received(request_id: String, function_name: String, args: Dictionary)
+signal operation_start_received(request_id: String)
+signal operation_end_received()
+signal connection_error(error_message: String)
+
+# Statistics
+var bytes_sent: int = 0
+var bytes_received: int = 0
+var messages_sent: int = 0
+var messages_received: int = 0
+
+func _init():
+	websocket = WebSocketPeer.new()
+	connection_state = ConnectionState.DISCONNECTED
+
+func _exit_tree():
+	"""Clean up WebSocket connection when node is removed"""
+	if is_server_connected():
+		websocket.close()
+
+func _process(_delta: float) -> void:
+	# Poll the socket for updates
+	websocket.poll()
+	
+	if websocket.get_ready_state() == WebSocketPeer.STATE_CONNECTING:
+		if connection_state != ConnectionState.CONNECTING:
+			connection_state = ConnectionState.CONNECTING
+			connection_state_changed.emit(connection_state)
+			print("[AIWebSocket] Connecting to server...")
+	
+	elif websocket.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		if connection_state != ConnectionState.CONNECTED:
+			connection_state = ConnectionState.CONNECTED
+			connection_state_changed.emit(connection_state)
+			print("[AIWebSocket] Connected to server")
+		
+		# Process incoming messages (limit to one per frame to avoid blocking)
+		if websocket.get_available_packet_count() > 0:
+			var packet = websocket.get_packet()
+			if packet.size() > 0:
+				_handle_incoming_data(packet)
+		
+		# Send queued messages
+		_process_message_queue()
+	
+	elif websocket.get_ready_state() == WebSocketPeer.STATE_CLOSING:
+		if connection_state != ConnectionState.CLOSING:
+			connection_state = ConnectionState.CLOSING
+			connection_state_changed.emit(connection_state)
+			print("[AIWebSocket] Closing connection...")
+	
+	elif websocket.get_ready_state() == WebSocketPeer.STATE_CLOSED:
+		if connection_state != ConnectionState.DISCONNECTED:
+			connection_state = ConnectionState.DISCONNECTED
+			connection_state_changed.emit(connection_state)
+			print("[AIWebSocket] Disconnected from server")
+		
+		# Check for connection errors
+		var close_code = websocket.get_close_code()
+		if close_code != 0:
+			var error_msg = "Connection closed with code: " + str(close_code)
+			connection_error.emit(error_msg)
+			print("[AIWebSocket] ", error_msg)
+
+func connect_to_server(host: String = "", port: int = -1) -> bool:
+	"""Connect to the WebSocket server"""
+	
+	# Use provided host/port or defaults
+	server_host = host if host != "" else server_host
+	server_port = port if port != -1 else server_port
+	
+	# Validate inputs
+	if server_host == "" or server_port <= 0:
+		printerr("[AIWebSocket] Invalid host or port: ", server_host, ":", server_port)
+		return false
+	
+	# Create connection URL
+	var url = "ws://%s:%d" % [server_host, server_port]
+	print("[AIWebSocket] Connecting to ", url)
+	
+	# Initialize connection
+	var error = websocket.connect_to_url(url)
+	if error != OK:
+		connection_state = ConnectionState.ERROR
+		connection_state_changed.emit(connection_state)
+		connection_error.emit("Failed to connect: Error " + str(error))
+		printerr("[AIWebSocket] Failed to connect: ", error)
+		return false
+	
+	connection_state = ConnectionState.CONNECTING
+	connection_state_changed.emit(connection_state)
+	return true
+
+func disconnect_from_server() -> void:
+	"""Disconnect from the WebSocket server"""
+	if websocket.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		websocket.close()
+		connection_state = ConnectionState.CLOSING
+		connection_state_changed.emit(connection_state)
+		print("[AIWebSocket] Disconnecting from server...")
+
+func send_message(message: Dictionary) -> void:
+	"""Queue a message to be sent to the server"""
+	if not is_server_connected():
+		printerr("[AIWebSocket] Cannot send message: not connected")
+		return
+	
+	message_queue.append(message)
+
+func send_file_sync(project_id: int, arrow_content: String, timestamp: int = -1) -> void:
+	"""
+	Send file synchronization message to server
+	Syncs the complete .arrow project file content
+	
+	Message format:
+	{
+	  "type": "file_sync",
+	  "data": {
+	    "project_id": int,
+	    "arrow_content": string (JSON string of .arrow file),
+	    "timestamp": int (unix timestamp)
+	  }
+	}
+	"""
+	if timestamp == -1:
+		timestamp = Time.get_unix_time_from_system()
+	
+	send_message({
+		"type": "file_sync",
+		"data": {
+			"project_id": project_id,
+			"arrow_content": arrow_content,
+			"timestamp": timestamp
+		}
+	})
+
+func send_user_message(message: String, history: Array, selected_node_ids: Array = [], 
+					   current_scene_id: int = -1, current_project_id: int = -1) -> void:
+	"""
+	Send user chat message to server
+	
+	Message format:
+	{
+	  "type": "user_message",
+	  "data": {
+	    "message": string,
+	    "history": array (chat history),
+	    "selected_node_ids": array of ints,
+	    "current_scene_id": int,
+	    "current_project_id": int
+	  }
+	}
+	"""
+	send_message({
+		"type": "user_message",
+		"data": {
+			"message": message,
+			"history": history,
+			"selected_node_ids": selected_node_ids,
+			"current_scene_id": current_scene_id,
+			"current_project_id": current_project_id
+		}
+	})
+
+func send_function_result(request_id: String, success: bool, result = null, 
+						 error: String = "", affected_nodes: Dictionary = {}) -> void:
+	"""
+	Send function execution result back to server
+	
+	Message format:
+	{
+	  "type": "function_result",
+	  "data": {
+	    "request_id": string,
+	    "success": bool,
+	    "result": any (on success),
+	    "error": string (on failure),
+	    "affected_nodes": dict (on failure, optional)
+	  }
+	}
+	
+	Args:
+	  request_id: Unique identifier for the function call request
+	  success: Whether the function executed successfully
+	  result: Return value of the function (included if success=true)
+	  error: Error message (included if success=false)
+	  affected_nodes: State of affected nodes for error recovery (included on error)
+	"""
+	var message: Dictionary = {
+		"type": "function_result",
+		"data": {
+			"request_id": request_id,
+			"success": success,
+		}
+	}
+	
+	if success:
+		if result != null:
+			message.data["result"] = result
+	else:
+		if error != "":
+			message.data["error"] = error
+		if affected_nodes.size() > 0:
+			message.data["affected_nodes"] = affected_nodes
+	
+	send_message(message)
+
+func send_stop_signal() -> void:
+	"""
+	Send stop signal to abort current AI operation
+	Server will stop processing and client will rollback to operation start checkpoint
+	
+	Message format:
+	{
+	  "type": "stop"
+	}
+	"""
+	send_message({
+		"type": "stop"
+	})
+
+func is_server_connected() -> bool:
+	"""Check if connected to the server"""
+	return websocket.get_ready_state() == WebSocketPeer.STATE_OPEN
+
+func _process_message_queue() -> void:
+	"""Send queued messages to the server (one per frame to avoid blocking)"""
+	if message_queue.size() > 0 and is_server_connected():
+		var message = message_queue.pop_front()
+		var json_string = JSON.stringify(message)
+		var packet = json_string.to_utf8_buffer()
+		
+		var error = websocket.send(packet)
+		if error == OK:
+			bytes_sent += packet.size()
+			messages_sent += 1
+		else:
+			printerr("[AIWebSocket] Failed to send message: ", error)
+			connection_error.emit("Failed to send message: Error " + str(error))
+
+func _handle_incoming_data(packet: PackedByteArray) -> void:
+	"""Parse and handle incoming data from the server"""
+	bytes_received += packet.size()
+	messages_received += 1
+	
+	var json_string = packet.get_string_from_utf8()
+	
+	# Parse JSON
+	var json = JSON.new()
+	var parse_result = json.parse(json_string)
+	
+	if parse_result != OK:
+		printerr("[AIWebSocket] Failed to parse incoming message: ", json.get_error_message())
+		return
+	
+	var data = json.data
+	
+	if not data is Dictionary:
+		printerr("[AIWebSocket] Invalid message format: expected Dictionary")
+		return
+	
+	# Extract message type
+	if not data.has("type"):
+		printerr("[AIWebSocket] Missing 'type' field in message")
+		return
+	
+	var message_type = data.type
+	
+	# Extract data
+	var message_data = data.get("data", {})
+	
+	# Handle different message types
+	handle_server_message(message_type, message_data)
+
+func handle_server_message(message_type: String, data: Dictionary) -> void:
+	"""
+	Route server messages to appropriate handlers
+	
+	SERVER → CLIENT MESSAGE TYPES:
+	
+	1. text_chunk: Streaming AI response text for chat display
+	   { "type": "text_chunk", "data": { "text": string } }
+	
+	2. function_call: Command to execute via AI Command Dispatcher
+	   { "type": "function_call", "data": { 
+	       "request_id": string, 
+	       "function_name": string,
+	       "args": dict 
+	   }}
+	   
+	   Supported function_name values:
+	   - create_insert_node, quick_insert_node, update_node, remove_node
+	   - update_node_map
+	   - create_new_scene, update_scene, remove_scene
+	   - create_new_variable, update_variable, remove_variable
+	   - create_new_character, update_character, remove_character
+	   - node_connection_replacement
+	   - update_scene_entry, update_project_entry
+	
+	3. operation_start: Begin AI operation (transition to PROCESSING state)
+	   { "type": "operation_start", "data": { "request_id": string } }
+	
+	4. operation_end: Complete AI operation (transition to IDLE, trigger save)
+	   { "type": "operation_end" }
+	"""
+	match message_type:
+		"text_chunk":
+			# Streaming AI response text
+			var text = data.get("text", "")
+			if text != "":
+				text_chunk_received.emit(text)
+		
+		"function_call":
+			# Command to execute via dispatcher
+			var request_id = data.get("request_id", "")
+			var function_name = data.get("function_name", "")
+			var args = data.get("args", {})
+			
+			if request_id != "" and function_name != "":
+				function_call_received.emit(request_id, function_name, args)
+			else:
+				printerr("[AIWebSocket] Invalid function_call: missing request_id or function_name")
+		
+		"operation_start":
+			# Begin AI operation (IDLE → PROCESSING)
+			var request_id = data.get("request_id", "")
+			if request_id != "":
+				operation_start_received.emit(request_id)
+			else:
+				printerr("[AIWebSocket] Invalid operation_start: missing request_id")
+		
+		"operation_end":
+			# Complete AI operation (PROCESSING → IDLE, trigger save)
+			operation_end_received.emit()
+		
+		_:
+			# Unknown message type
+			printerr("[AIWebSocket] Unknown message type: ", message_type)
+	
+	# Emit generic message received signal for additional handlers
+	message_received.emit(message_type, data)
+
+# Utility functions
+
+func get_connection_state_string() -> String:
+	"""Get connection state as string"""
+	match connection_state:
+		ConnectionState.DISCONNECTED:
+			return "Disconnected"
+		ConnectionState.CONNECTING:
+			return "Connecting"
+		ConnectionState.CONNECTED:
+			return "Connected"
+		ConnectionState.CLOSING:
+			return "Closing"
+		ConnectionState.ERROR:
+			return "Error"
+		_:
+			return "Unknown"
+
+func get_stats() -> Dictionary:
+	"""Get connection statistics"""
+	return {
+		"bytes_sent": bytes_sent,
+		"bytes_received": bytes_received,
+		"messages_sent": messages_sent,
+		"messages_received": messages_received
+	}
+
+func reset_stats() -> void:
+	"""Reset connection statistics"""
+	bytes_sent = 0
+	bytes_received = 0
+	messages_sent = 0
+	messages_received = 0
+
+# =============================================================================
+# API REFERENCE SUMMARY
+# =============================================================================
+#
+# This WebSocket adapter provides the communication layer for the Arrow AI system.
+# The AI server can remotely call functions to manipulate the Arrow project through
+# function_call messages. The dispatcher maps these calls to actual Mind functions.
+#
+# COMPLETE API FUNCTION LIST (callable via function_call messages):
+#
+# NODE OPERATIONS:
+#   create_insert_node(type: String, offset: Vector2, scene_id: int = -1, 
+#                      draw: bool = true, name_prefix: String = "", 
+#                      preset: Dictionary = {}) -> int
+#   quick_insert_node(node_type: String, offset: Vector2, connection = null) -> void
+#   update_node(node_id: int, name: String = "", data: Dictionary = {}, 
+#               notes: String = "", is_auto_update: bool = false) -> void
+#   remove_node(node_id: int, forced: bool = false) -> bool
+#   update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1) -> void
+#
+# SCENE OPERATIONS:
+#   create_new_scene(is_macro: bool = false) -> void
+#   update_scene(scene_id: int, name: String = "", entry: int = -1, 
+#                macro: bool = null, notes: String = "") -> void
+#   remove_scene(scene_id: int, forced: bool = false) -> bool
+#
+# VARIABLE OPERATIONS:
+#   create_new_variable(type: String) -> void
+#   update_variable(variable_id: int, name: String = "", type: String = "", 
+#                   initial_value = null, notes: String = "") -> void
+#   remove_variable(variable_id: int, forced: bool = false) -> bool
+#
+# CHARACTER OPERATIONS:
+#   create_new_character() -> void
+#   update_character(character_id: int, name: String = "", color: String = "", 
+#                    tags: Dictionary = {}, notes: String = "") -> void
+#   remove_character(character_id: int, forced: bool = false) -> bool
+#
+# UTILITY OPERATIONS:
+#   node_connection_replacement(conversation_table: Dictionary, 
+#                               remake_lost_connections: bool = true) -> Array
+#
+# ENTRY POINT OPERATIONS:
+#   update_scene_entry(node_id: int) -> int
+#   update_project_entry(node_id: int) -> int
+#
+# =============================================================================

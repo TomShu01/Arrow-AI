@@ -1,0 +1,170 @@
+{
+	"title": "Home",
+	"entry": 1,
+	"meta": {
+		"chapter": 0,
+		"authors": {
+			"0": [
+				"Root Contributor",
+				100
+			],
+			"1": [
+				"Lead Author",
+				0
+			]
+		},
+		"last_save": "2025-05-20 20:20:25",
+		"editor": "3.1.0",
+		"offline": true,
+		"remote": {
+
+		}
+	},
+	"resources": {
+		"scenes": {
+			"0": {
+				"name": "initializer",
+				"entry": 1,
+				"map": {
+					"1": {
+						"offset": [
+							100,
+							100
+						],
+						"io": [
+							[
+								1,
+								0,
+								2,
+								0
+							]
+						]
+					},
+					"2": {
+						"offset": [
+							300,
+							300
+						],
+						"io": [
+							[
+								2,
+								0,
+								3,
+								0
+							]
+						],
+						"skip": true
+					},
+					"3": {
+						"offset": [
+							580,
+							355
+						]
+					},
+					"4": {
+						"offset": [
+							255,
+							105
+						]
+					}
+				}
+			}
+		},
+		"nodes": {
+			"1": {
+				"type": "entry",
+				"name": "1",
+				"data": {
+					"plaque": "Start"
+				},
+				"notes": "Marshals a new run of the story by initializing its state and loading the first scene."
+			},
+			"2": {
+				"type": "content",
+				"name": "2",
+				"data": {
+					"title": "Hello there!",
+					"content": "Welcome to The Adventure.",
+					"brief": -1,
+					"rect": [
+						220,
+						60
+					],
+					"clear": true
+				}
+			},
+			"3": {
+				"type": "marker",
+				"name": "3",
+				"data": {
+					"label": "![intro]",
+					"color": "00ff00ff"
+				},
+				"notes": "This marker will be interpreted as a hook to load the Intro scene.\nIt is a shorthand for `load[res://scenes/intro.tscn]`."
+			},
+			"4": {
+				"type": "frame",
+				"name": "4",
+				"data": {
+					"label": "This chapter's main purpose is to initialize a new game,\nincluding globally shared variables and characters,\nand bridging runtime (Bow) parameters\n(e.g. player preferences).",
+					"color": "1a4cd2ff",
+					"rect": [
+						495,
+						375
+					]
+				}
+			}
+		},
+		"variables": {
+			"50": {
+				"name": "hero_stamina",
+				"type": "num",
+				"init": 0
+			},
+			"90": {
+				"name": "_debug",
+				"type": "bool",
+				"init": false
+			},
+			"94": {
+				"name": "_screen_reader",
+				"type": "num",
+				"init": 2
+			},
+			"95": {
+				"name": "_hint_level",
+				"type": "num",
+				"init": 1
+			},
+			"96": {
+				"name": "_sensory_intensity_level",
+				"type": "num",
+				"init": 4
+			},
+			"97": {
+				"name": "_moderation_level",
+				"type": "num",
+				"init": 0
+			},
+			"98": {
+				"name": "_locale",
+				"type": "str",
+				"init": "en"
+			}
+		},
+		"characters": {
+			"10": {
+				"name": "Hero",
+				"color": "08ff00"
+			},
+			"11": {
+				"name": "Traveler",
+				"color": "ff8300"
+			},
+			"99": {
+				"name": "_restricted",
+				"color": "ffffff"
+			}
+		}
+	}
+}

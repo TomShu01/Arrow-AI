@@ -12,6 +12,7 @@ const PANELS_PATHS = {
 	"authors": "/root/Main/Overlays/Control/Authors",
 	"new_project_prompt":  "/root/Main/Overlays/Control/NewDocument",
 	"console": "/root/Main/FloatingTools/Control/Console",
+	"ai_chat": "/root/Main/Editor/Centre_Wrapper/AIChat",
 	"about": "/root/Main/Overlays/Control/About",
 	"notification": "/root/Main/Overlays/Control/Notification",
 }
@@ -23,6 +24,7 @@ const MAIN_UI_PATHS = {
 	"app_menu": "/root/Main/Editor/Top/Bar/AppMenu",
 	"quick_preferences": "/root/Main/Editor/Bottom/Bar/Quick/Access/SpecialPreferences",
 	"inspector_view_toggle": "/root/Main/Editor/Bottom/Bar/Quick/Access/InspectorVisibility",
+	"ai_chat_view_toggle": "/root/Main/Editor/Bottom/Bar/Quick/Access/AIChatVisibility",
 }
 
 const THEME_ADJUSTMENT_LAYERS = [
@@ -61,6 +63,7 @@ class UiManager :
 	func register_connections():
 		TheViewport.size_changed.connect(self._on_screen_resized)
 		MAIN_UI.inspector_view_toggle.toggled.connect(self._on_inspector_view_toggle, CONNECT_DEFERRED)
+		MAIN_UI.ai_chat_view_toggle.toggled.connect(self._on_ai_chat_view_toggle, CONNECT_DEFERRED)
 		MAIN_UI.quick_preferences.quick_preference.connect(self._on_quick_preference, CONNECT_DEFERRED)
 		PANELS.preferences.preference_modifications_done.connect(Main.Configs._on_preference_modifications_done, CONNECT_DEFERRED)
 		PANELS.preferences.preference_modified.connect(Main.Configs._on_preference_modified, CONNECT_DEFERRED)
@@ -75,6 +78,10 @@ class UiManager :
 	
 	func _on_inspector_view_toggle(new_state:bool) -> void:
 		set_panel_visibility("inspector", new_state)
+		pass
+	
+	func _on_ai_chat_view_toggle(new_state:bool) -> void:
+		set_panel_visibility("ai_chat", new_state)
 		pass
 	
 	func _on_quick_preference(new_state:bool, command:String) -> void:
@@ -97,6 +104,11 @@ class UiManager :
 				PANELS.preferences.call_deferred("refresh_fields_view", Main.Configs.CONFIRMED)
 			"inspector":
 				MAIN_UI.inspector_view_toggle.set_deferred("button_pressed", visibility)
+			"ai_chat":
+				MAIN_UI.ai_chat_view_toggle.set_deferred("button_pressed", visibility)
+				# Also toggle the resize handle visibility
+				var resize_handle = Main.get_node("/root/Main/Editor/Centre_Wrapper/ResizeHandle")
+				resize_handle.set_deferred("visible", visibility)
 		# ... then open and track the `panel`
 		PANELS[panel].set_deferred("visible", visibility)
 		track_open_panels(panel, visibility)
