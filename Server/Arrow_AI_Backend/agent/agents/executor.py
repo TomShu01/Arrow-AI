@@ -20,7 +20,15 @@ Available tools allow you to:
 - Create dialog, content, hub, condition, and variable update nodes
 - Create connections between nodes
 - Create variables and characters
+- Query existing content: get_nodes, get_character, get_variable, get_scene, get_node_connections
 - Manage the narrative structure
+
+IMPORTANT: When asked to show or retrieve information, use the query tools:
+- get_character(character_name="Name") to find character info
+- get_nodes(node_type="dialog", character_id=X) to find dialog nodes for a character
+- get_nodes(node_type="dialog") to find all dialog nodes
+- get_variable(), get_scene() for other resources
+Only create new content when explicitly asked to do so.
 
 Be concise and focused on completing the task."""
 

@@ -8,6 +8,7 @@ from typing import Dict, Any, Literal
 import asyncio
 import uuid
 from Arrow_AI_Backend.manager import manager
+import json
 
 
 # Store current session context (will be set by the agent)
@@ -22,7 +23,8 @@ def set_context(session_id: str, scene_id: int = None, arrow_file: str = None):
     """Set the current execution context for tools"""
     current_context["session_id"] = session_id
     current_context["scene_id"] = scene_id
-    current_context["arrow_file"] = arrow_file
+    if arrow_file:
+        current_context["arrow_file"] = json.loads(arrow_file)
 
 
 def get_arrow_file() -> str:
@@ -323,6 +325,252 @@ async def create_character(
     })
 
 
+# ========== Context Query Tools ==========
+
+@tool
+async def get_nodes(node_type: str = None, character_id: int = None, scene_id: int = None) -> str:
+    """
+    Get nodes from the current Arrow file based on filters.
+    
+    Args:
+        node_type: Optional type of node to filter by (dialog, content, condition, etc.)
+        character_id: Optional character ID to filter dialog/monolog nodes by character
+        scene_id: Optional scene ID to filter nodes from
+        
+    Returns:
+        List of matching nodes with their data
+        
+    Examples:
+        - get_nodes(node_type="dialog") - Get all dialog nodes
+        - get_nodes(node_type="dialog", character_id=11) - Get dialog nodes for character ID 11
+        - get_nodes(character_id=11) - Get all nodes (any type) for character ID 11
+    """
+    arrow_file = current_context.get("arrow_file")
+    if not arrow_file:
+        return "No Arrow file loaded in context"
+        
+    try:
+        nodes = arrow_file.get("resources", {}).get("nodes", {})
+        results = []
+        
+        for node_id, node_data in nodes.items():
+            # Filter by node type
+            if node_type and node_data.get("type") != node_type:
+                continue
+                
+            # Filter by character if specified
+            if character_id is not None:
+                node_character = node_data.get("data", {}).get("character")
+                if node_character != character_id:
+                    continue
+                    
+            # Filter by scene if specified
+            if scene_id is not None:
+                # Find node in scene map
+                scene_found = False
+                for scene in arrow_file.get("resources", {}).get("scenes", {}).values():
+                    if str(scene_id) == str(scene.get("id")) and str(node_id) in scene.get("map", {}):
+                        scene_found = True
+                        break
+                if not scene_found:
+                    continue
+                    
+            results.append({
+                "id": node_id,
+                "type": node_data.get("type"),
+                "name": node_data.get("name"),
+                "data": node_data.get("data", {}),
+                "notes": node_data.get("notes", "")
+            })
+            
+        
+        return json.dumps(results, indent=2)
+        
+    except Exception as e:
+        return f"Error retrieving nodes: {str(e)}"
+
+
+@tool
+async def get_character(character_id: int = None, character_name: str = None) -> str:
+    """
+    Get character information by ID or name.
+    
+    Args:
+        character_id: ID of the character to retrieve
+        character_name: Name of the character to retrieve
+        
+    Returns:
+        Character data if found
+    """
+    arrow_file = current_context.get("arrow_file")
+    if not arrow_file:
+        return "No Arrow file loaded in context"
+        
+    try:
+        characters = arrow_file.get("resources", {}).get("characters", {})
+        
+        # Search by ID
+        if character_id is not None:
+            char = characters.get(str(character_id))
+            if char:
+                return json.dumps(char, indent=2)
+            return f"Character with ID {character_id} not found"
+            
+        # Search by name
+        if character_name:
+            for char in characters.values():
+                if char.get("name") == character_name:
+                    return json.dumps(char, indent=2)
+            return f"Character named '{character_name}' not found"
+            
+        # Return all characters if no filters
+        return json.dumps(characters, indent=2)
+        
+    except Exception as e:
+        return f"Error retrieving character: {str(e)}"
+
+
+@tool
+async def get_variable(variable_id: int = None, variable_name: str = None) -> str:
+    """
+    Get variable information by ID or name.
+    
+    Args:
+        variable_id: ID of the variable to retrieve
+        variable_name: Name of the variable to retrieve
+        
+    Returns:
+        Variable data if found
+    """
+    arrow_file = current_context.get("arrow_file")
+    if not arrow_file:
+        return "No Arrow file loaded in context"
+        
+    try:
+        variables = arrow_file.get("resources", {}).get("variables", {})
+        
+        # Search by ID
+        if variable_id is not None:
+            var = variables.get(str(variable_id))
+            if var:
+                
+                return json.dumps(var, indent=2)
+            return f"Variable with ID {variable_id} not found"
+            
+        # Search by name
+        if variable_name:
+            for var in variables.values():
+                if var.get("name") == variable_name:
+                    
+                    return json.dumps(var, indent=2)
+            return f"Variable named '{variable_name}' not found"
+            
+        # Return all variables if no filters
+        
+        return json.dumps(variables, indent=2)
+        
+    except Exception as e:
+        return f"Error retrieving variable: {str(e)}"
+
+
+@tool
+async def get_scene(scene_id: int = None, scene_name: str = None) -> str:
+    """
+    Get scene information by ID or name.
+    
+    Args:
+        scene_id: ID of the scene to retrieve
+        scene_name: Name of the scene to retrieve
+        
+    Returns:
+        Scene data if found
+    """
+    arrow_file = current_context.get("arrow_file")
+    if not arrow_file:
+        return "No Arrow file loaded in context"
+        
+    try:
+        scenes = arrow_file.get("resources", {}).get("scenes", {})
+        
+        # Search by ID
+        if scene_id is not None:
+            scene = scenes.get(str(scene_id))
+            if scene:
+                
+                return json.dumps(scene, indent=2)
+            return f"Scene with ID {scene_id} not found"
+            
+        # Search by name
+        if scene_name:
+            for scene in scenes.values():
+                if scene.get("name") == scene_name:
+                    
+                    return json.dumps(scene, indent=2)
+            return f"Scene named '{scene_name}' not found"
+            
+        # Return all scenes if no filters
+        
+        return json.dumps(scenes, indent=2)
+        
+    except Exception as e:
+        return f"Error retrieving scene: {str(e)}"
+
+
+@tool
+async def get_node_connections(node_id: int) -> str:
+    """
+    Get all connections to/from a specific node.
+    
+    Args:
+        node_id: ID of the node to get connections for
+        
+    Returns:
+        List of connections with source and target nodes
+    """
+    arrow_file = current_context.get("arrow_file")
+    if not arrow_file:
+        return "No Arrow file loaded in context"
+        
+    try:
+        connections = []
+        
+        # Search all scenes for connections involving this node
+        for scene in arrow_file.get("resources", {}).get("scenes", {}).values():
+            scene_map = scene.get("map", {})
+            
+            # Look for the node in this scene
+            node_data = scene_map.get(str(node_id))
+            if node_data:
+                # Get outgoing connections
+                for conn in node_data.get("io", []):
+                    connections.append({
+                        "from_node": conn[0],
+                        "from_slot": conn[1],
+                        "to_node": conn[2],
+                        "to_slot": conn[3]
+                    })
+                    
+                # Get incoming connections
+                for other_node in scene_map.values():
+                    for conn in other_node.get("io", []):
+                        if conn[2] == node_id:
+                            connections.append({
+                                "from_node": conn[0],
+                                "from_slot": conn[1],
+                                "to_node": conn[2],
+                                "to_slot": conn[3]
+                            })
+                            
+        if not connections:
+            return f"No connections found for node {node_id}"
+            
+        
+        return json.dumps(connections, indent=2)
+        
+    except Exception as e:
+        return f"Error retrieving connections: {str(e)}"
+
+
 # List of all tools for the executor
 ARROW_TOOLS = [
     create_dialog_node,
@@ -333,5 +581,10 @@ ARROW_TOOLS = [
     create_connection,
     create_variable,
     create_character,
+    get_nodes,
+    get_character,
+    get_variable,
+    get_scene,
+    get_node_connections,
 ]
 

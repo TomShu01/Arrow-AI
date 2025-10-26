@@ -48,6 +48,38 @@ async def test_complex():
     }
 
 
+async def test_context_query():
+    """Test the context query tools with a sample Arrow file"""
+    with open("../intro.arrow") as f:
+        arrow_content = f.read()
+    
+    return {
+        "type": "user_message",
+        "message": "Just show me all dialog nodes where the Traveler speaks, and get the Traveler character info. Don't create anything new.",
+        "arrow_content": arrow_content,
+        "history": [],
+        "selected_node_ids": [],
+        "current_scene_id": None,
+        "current_project_id": 1
+    }
+
+
+async def test_context_query_comprehensive():
+    """Test comprehensive context querying"""
+    with open("../intro.arrow") as f:
+        arrow_content = f.read()
+    
+    return {
+        "type": "user_message",
+        "message": "Show me all characters, all variables, all scenes, and all dialog nodes in the project. Just retrieve information, don't create anything.",
+        "arrow_content": arrow_content,
+        "history": [],
+        "selected_node_ids": [],
+        "current_scene_id": None,
+        "current_project_id": 1
+    }
+
+
 async def test_protocol(test_type="simple"):
     uri = "ws://localhost:8000/ws/chat"
     
@@ -64,6 +96,10 @@ async def test_protocol(test_type="simple"):
         print(f"=== Sending user_message ({test_type} test) ===")
         if test_type == "complex":
             user_message = await test_complex()
+        elif test_type == "query":
+            user_message = await test_context_query()
+        elif test_type == "comprehensive":
+            user_message = await test_context_query_comprehensive()
         else:
             user_message = await test_simple()
         
@@ -76,42 +112,49 @@ async def test_protocol(test_type="simple"):
         function_call_count = 0
         
         while True:
-            response = await websocket.recv()
-            data = json.loads(response)
-            
-            if data["type"] == "chat_response":
-                message_count += 1
-                print(f"✓ Chat Response {message_count}:")
-                print(f"  {data['message']}\n")
+            try:
+                response = await websocket.recv()
+                data = json.loads(response)
                 
-            elif data["type"] == "function_call":
-                function_call_count += 1
-                print(f"✓ Function Call {function_call_count}:")
-                print(f"  Request ID: {data['request_id']}")
-                print(f"  Function: {data['function']}")
-                print(f"  Arguments: {json.dumps(data['arguments'], indent=4)}\n")
-                
-                # Simulate successful execution and send result back
-                function_result = {
-                    "type": "function_result",
-                    "request_id": data["request_id"],
-                    "success": True,
-                    "arrow_content": "<?xml version=\"1.0\"?><arrow></arrow>",
-                    "result": f"Successfully executed {data['function']} (simulated)",
-                    "error": ""
-                }
-                await websocket.send(json.dumps(function_result))
-                print(f"✓ Sent function_result for {data['request_id']}\n")
-                
-            elif data["type"] == "end":
-                print(f"✓ Conversation ended")
+                if data["type"] == "chat_response":
+                    message_count += 1
+                    print(f"✓ Chat Response {message_count}:")
+                    print(f"  {data['message']}\n")
+                    
+                elif data["type"] == "function_call":
+                    function_call_count += 1
+                    print(f"✓ Function Call {function_call_count}:")
+                    print(f"  Request ID: {data['request_id']}")
+                    print(f"  Function: {data['function']}")
+                    print(f"  Arguments: {json.dumps(data['arguments'], indent=4)}\n")
+                    
+                    # Simulate successful execution and send result back
+                    function_result = {
+                        "type": "function_result",
+                        "request_id": data["request_id"],
+                        "success": True,
+                        "arrow_content": "<?xml version=\"1.0\"?><arrow></arrow>",
+                        "result": f"Successfully executed {data['function']} (simulated)",
+                        "error": ""
+                    }
+                    await websocket.send(json.dumps(function_result))
+                    print(f"✓ Sent function_result for {data['request_id']}\n")
+                    
+                elif data["type"] == "end":
+                    print(f"✓ Conversation ended")
+                    print(f"  Total chat responses: {message_count}")
+                    print(f"  Total function calls: {function_call_count}\n")
+                    break
+                    
+                else:
+                    print(f"⚠ Unexpected message type: {data['type']}")
+                    print(f"  Data: {json.dumps(data, indent=2)}\n")
+                    
+            except websockets.exceptions.ConnectionClosed:
+                print(f"✓ WebSocket connection closed by server")
                 print(f"  Total chat responses: {message_count}")
                 print(f"  Total function calls: {function_call_count}\n")
                 break
-                
-            else:
-                print(f"⚠ Unexpected message type: {data['type']}")
-                print(f"  Data: {json.dumps(data, indent=2)}\n")
 
         # 4. Test stop message
         print("=== Sending stop signal ===")
@@ -128,12 +171,14 @@ if __name__ == "__main__":
     # Check for test type argument
     test_type = "simple"
     if len(sys.argv) > 1:
-        if sys.argv[1] in ["simple", "complex"]:
+        if sys.argv[1] in ["simple", "complex", "query", "comprehensive"]:
             test_type = sys.argv[1]
         else:
-            print("Usage: python test_websocket.py [simple|complex]")
-            print("  simple  - Test single dialog creation (default)")
-            print("  complex - Test complex multi-node scenario")
+            print("Usage: python test_websocket.py [simple|complex|query|comprehensive]")
+            print("  simple        - Test single dialog creation (default)")
+            print("  complex       - Test complex multi-node scenario")
+            print("  query         - Test context query tool with specific queries")
+            print("  comprehensive - Test comprehensive context querying")
             sys.exit(1)
     
     try:
