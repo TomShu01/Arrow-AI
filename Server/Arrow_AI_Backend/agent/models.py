@@ -17,6 +17,6 @@ llm = ChatOpenAI(
 )
 
 llm_smart = ChatOpenAI(
-    model="gpt-4o",
+    model="gpt-4.1",
     temperature=0.5,
 )

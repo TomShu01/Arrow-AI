@@ -85,16 +85,21 @@ async def execute_step(state: PlanExecute):
         arrow_file=state.get("arrow_file")
     )
     
-    # Create execution prompt with the full plan context
+    # Give the executor ALL remaining tasks
+    # The executor agent has its own internal loop and will work through them
     plan_text = "\n".join(f"{i+1}. {step}" for i, step in enumerate(plan))
-    execution_prompt = f"""Execute the following tasks:
+    
+    execution_prompt = f"""Complete the following plan step-by-step:
 
 {plan_text}
 
-Work through these tasks systematically. Use the available tools to complete them."""
+IMPORTANT: Work through these steps IN ORDER. After completing each step with a tool, verify the result before moving to the next step. Do not skip steps or execute them out of order."""
+    
+    print(f"[Supervisor] Sending {len(plan)} tasks to executor")
+    print(f"[Supervisor] Plan:\n{plan_text}")
     
     # Invoke the executor agent
-    # The agent will use tools which will trigger interrupts
+    # The agent has its own internal loop and will work through all tasks
     try:
         result = await agent_executor.ainvoke({
             "messages": [{"role": "user", "content": execution_prompt}]

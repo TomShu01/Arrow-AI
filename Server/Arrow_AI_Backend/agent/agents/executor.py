@@ -3,38 +3,26 @@ Executor Agent - Executes tasks using Arrow tools
 Follows the new LangChain 1.0 API with create_agent
 """
 
-from Arrow_AI_Backend.agent.models import llm
+from Arrow_AI_Backend.agent.models import llm_smart
 from langchain.agents import create_agent
 from Arrow_AI_Backend.agent.tools.arrow_tools import ARROW_TOOLS
 
 # System prompt for the executor
-EXECUTOR_PROMPT = """You are an AI assistant that executes narrative design tasks using Arrow tools.
+EXECUTOR_PROMPT = """You are a task executor for Arrow narrative design. Execute the given plan step-by-step using tools.
 
-Your job is to:
-1. Analyze the given task
-2. Use the available tools to complete it
-3. Create nodes, connections, variables, and characters as needed
-4. Provide clear feedback about what you've done
+RULES:
+1. Execute steps in exact order - do step 1, then step 2, then step 3, etc.
+2. Do NOT skip steps. Execute every single step as written.
+3. After each tool call, check the result before moving to the next step.
+4. If a step says "check if X exists", use a query tool (get_character, get_variable, etc.)
+5. Use the results from earlier steps in later steps (e.g., use the character ID you found/created).
 
-Available tools allow you to:
-- Create dialog, content, hub, condition, and variable update nodes
-- Create connections between nodes
-- Create variables and characters
-- Query existing content: get_nodes, get_character, get_variable, get_scene, get_node_connections
-- Manage the narrative structure
-
-IMPORTANT: When asked to show or retrieve information, use the query tools:
-- get_character(character_name="Name") to find character info
-- get_nodes(node_type="dialog", character_id=X) to find dialog nodes for a character
-- get_nodes(node_type="dialog") to find all dialog nodes
-- get_variable(), get_scene() for other resources
-Only create new content when explicitly asked to do so.
-
-Be concise and focused on completing the task."""
+When done, summarize what you accomplished."""
 
 # Create the executor agent with Arrow tools
+# Using llm_smart (lower temperature) for more consistent, deterministic execution
 agent_executor = create_agent(
-    model=llm,
+    model=llm_smart,
     tools=ARROW_TOOLS,
     system_prompt=EXECUTOR_PROMPT
 )

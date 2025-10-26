@@ -24,7 +24,15 @@ def set_context(session_id: str, scene_id: int = None, arrow_file: str = None):
     current_context["session_id"] = session_id
     current_context["scene_id"] = scene_id
     if arrow_file:
-        current_context["arrow_file"] = json.loads(arrow_file)
+        try:
+            if isinstance(arrow_file, str):
+                current_context["arrow_file"] = json.loads(arrow_file)
+            else:
+                current_context["arrow_file"] = arrow_file
+        except json.JSONDecodeError as e:
+            print(f"[Tools] Error parsing arrow_file JSON: {e}")
+            print(f"[Tools] Arrow file content (first 200 chars): {arrow_file[:200] if isinstance(arrow_file, str) else 'Not a string'}")
+            current_context["arrow_file"] = {}
 
 
 def get_arrow_file() -> str:
@@ -75,12 +83,10 @@ async def send_function_call(function_name: str, arguments: Dict[str, Any]) -> s
         "arguments": arguments
     })
     
-    print(f"[Tools] Sent function call {function_name} with request_id {request_id}, waiting for result...")
     
     # Wait for the result (with timeout)
     try:
         result = await asyncio.wait_for(future, timeout=30.0)
-        print(f"[Tools] Received result for {request_id}: {result}")
         return str(result)
     except asyncio.TimeoutError:
         pending_calls.pop(request_id, None)
@@ -243,6 +249,53 @@ async def create_variable_update_node(
     })
 
 
+# ========== Node Update/Delete Tools ==========
+
+@tool
+async def update_node(
+    node_id: int,
+    name: str = None,
+    data: dict = None,
+    notes: str = None
+) -> str:
+    """
+    Update an existing node's properties.
+    
+    Args:
+        node_id: ID of the node to update
+        name: Optional new name for the node
+        data: Optional partial data update (merged with existing)
+        notes: Optional new notes
+    """
+    args = {"node_id": node_id}
+    if name is not None:
+        args["name"] = name
+    if data is not None:
+        args["data"] = data
+    if notes is not None:
+        args["notes"] = notes
+    
+    return await send_function_call("update_node", args)
+
+
+@tool
+async def delete_node(
+    node_id: int,
+    force: bool = False
+) -> str:
+    """
+    Delete a node from the scene.
+    
+    Args:
+        node_id: ID of the node to delete
+        force: If true, breaks references to this node
+    """
+    return await send_function_call("delete_node", {
+        "node_id": node_id,
+        "force": force
+    })
+
+
 # ========== Connection Tools ==========
 
 @tool
@@ -268,6 +321,33 @@ async def create_connection(
         "modifications": {
             "io": {
                 "push": [[from_node_id, from_slot, to_node_id, to_slot]]
+            }
+        }
+    })
+
+
+@tool
+async def delete_connection(
+    from_node_id: int,
+    to_node_id: int,
+    from_slot: int = 0,
+    to_slot: int = 0
+) -> str:
+    """
+    Delete a connection between two nodes.
+    
+    Args:
+        from_node_id: ID of the source node
+        to_node_id: ID of the target node
+        from_slot: Output slot index on source node (default: 0)
+        to_slot: Input slot index on target node (default: 0)
+    """
+    return await send_function_call("update_node_map", {
+        "node_id": from_node_id,
+        "scene_id": current_context.get("scene_id"),
+        "modifications": {
+            "io": {
+                "pop": [[from_node_id, from_slot, to_node_id, to_slot]]
             }
         }
     })
@@ -299,6 +379,51 @@ async def create_variable(
     })
 
 
+@tool
+async def update_variable(
+    variable_id: int,
+    name: str = None,
+    initial_value: int | float | str | bool = None,
+    notes: str = None
+) -> str:
+    """
+    Update an existing variable's properties.
+    
+    Args:
+        variable_id: ID of the variable to update
+        name: Optional new name
+        initial_value: Optional new initial value
+        notes: Optional new notes
+    """
+    args = {"variable_id": variable_id}
+    if name is not None:
+        args["name"] = name
+    if initial_value is not None:
+        args["initial_value"] = initial_value
+    if notes is not None:
+        args["notes"] = notes
+    
+    return await send_function_call("update_variable", args)
+
+
+@tool
+async def delete_variable(
+    variable_id: int,
+    force: bool = False
+) -> str:
+    """
+    Delete a variable.
+    
+    Args:
+        variable_id: ID of the variable to delete
+        force: If true, deletes even if used by nodes
+    """
+    return await send_function_call("delete_variable", {
+        "variable_id": variable_id,
+        "force": force
+    })
+
+
 # ========== Character Tools ==========
 
 @tool
@@ -322,6 +447,149 @@ async def create_character(
         "color": color,
         "tags": tags or {},
         "notes": notes
+    })
+
+
+@tool
+async def update_character(
+    character_id: int,
+    name: str = None,
+    color: str = None,
+    tags: dict = None,
+    notes: str = None
+) -> str:
+    """
+    Update an existing character's properties.
+    
+    Args:
+        character_id: ID of the character to update
+        name: Optional new name
+        color: Optional new color
+        tags: Optional new tags (fully replaces existing)
+        notes: Optional new notes
+    """
+    args = {"character_id": character_id}
+    if name is not None:
+        args["name"] = name
+    if color is not None:
+        args["color"] = color
+    if tags is not None:
+        args["tags"] = tags
+    if notes is not None:
+        args["notes"] = notes
+    
+    return await send_function_call("update_character", args)
+
+
+@tool
+async def delete_character(
+    character_id: int,
+    force: bool = False
+) -> str:
+    """
+    Delete a character.
+    
+    Args:
+        character_id: ID of the character to delete
+        force: If true, deletes even if used in dialog nodes
+    """
+    return await send_function_call("delete_character", {
+        "character_id": character_id,
+        "force": force
+    })
+
+
+# ========== Scene Tools ==========
+
+@tool
+async def create_scene(
+    name: str,
+    is_macro: bool = False,
+    notes: str = ""
+) -> str:
+    """
+    Create a new scene or macro.
+    
+    Args:
+        name: Name of the scene
+        is_macro: If true, creates a macro (reusable sub-graph)
+        notes: Optional description/notes
+    """
+    return await send_function_call("create_scene", {
+        "name": name,
+        "is_macro": is_macro,
+        "notes": notes
+    })
+
+
+@tool
+async def update_scene(
+    scene_id: int,
+    name: str = None,
+    notes: str = None
+) -> str:
+    """
+    Update scene properties.
+    
+    Args:
+        scene_id: ID of the scene to update
+        name: Optional new name
+        notes: Optional new notes
+    """
+    args = {"scene_id": scene_id}
+    if name is not None:
+        args["name"] = name
+    if notes is not None:
+        args["notes"] = notes
+    
+    return await send_function_call("update_scene", args)
+
+
+@tool
+async def delete_scene(
+    scene_id: int,
+    force: bool = False
+) -> str:
+    """
+    Delete a scene and all its nodes.
+    
+    Args:
+        scene_id: ID of the scene to delete
+        force: If true, deletes even if referenced
+    """
+    return await send_function_call("delete_scene", {
+        "scene_id": scene_id,
+        "force": force
+    })
+
+
+@tool
+async def set_scene_entry(
+    node_id: int
+) -> str:
+    """
+    Set the entry point for a scene.
+    
+    Args:
+        node_id: ID of the node to set as scene entry
+    """
+    return await send_function_call("set_scene_entry", {
+        "node_id": node_id
+    })
+
+
+@tool
+async def set_project_entry(
+    node_id: int
+) -> str:
+    """
+    Set the main entry point for the entire project.
+    
+    Args:
+        node_id: ID of the node to set as project entry
+    """
+    return await send_function_call("set_project_entry", {
+        "node_id": node_id
     })
 
 
@@ -573,14 +841,33 @@ async def get_node_connections(node_id: int) -> str:
 
 # List of all tools for the executor
 ARROW_TOOLS = [
+    # Node creation
     create_dialog_node,
     create_content_node,
     create_hub_node,
     create_condition_node,
     create_variable_update_node,
+    # Node operations
+    update_node,
+    delete_node,
+    # Connections
     create_connection,
+    delete_connection,
+    # Variables
     create_variable,
+    update_variable,
+    delete_variable,
+    # Characters
     create_character,
+    update_character,
+    delete_character,
+    # Scenes
+    create_scene,
+    update_scene,
+    delete_scene,
+    set_scene_entry,
+    set_project_entry,
+    # Context queries
     get_nodes,
     get_character,
     get_variable,

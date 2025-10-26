@@ -22,6 +22,8 @@ import websockets
 import sys
 
 
+with open("../intro.arrow") as f:
+    arrow_content = f.read()
 async def test_simple():
     """Test simple query that should use tools"""
     return {
@@ -37,10 +39,12 @@ async def test_simple():
 
 async def test_complex():
     """Test complex query that should trigger planning and multiple tools"""
+    with open("../intro.arrow") as f:
+        arrow_content = f.read()
     return {
         "type": "user_message",
         "message": "Create a branching narrative: First a dialog where Elena offers help, then a hub with three choices (accept, decline, ask why), and connect them all",
-        "arrow_content": "<?xml version=\"1.0\"?><arrow></arrow>",
+        "arrow_content": arrow_content,
         "history": [],
         "selected_node_ids": [12, 15],
         "current_scene_id": 5,
@@ -133,7 +137,7 @@ async def test_protocol(test_type="simple"):
                         "type": "function_result",
                         "request_id": data["request_id"],
                         "success": True,
-                        "arrow_content": "<?xml version=\"1.0\"?><arrow></arrow>",
+                        "arrow_content": arrow_content,
                         "result": f"Successfully executed {data['function']} (simulated)",
                         "error": ""
                     }
