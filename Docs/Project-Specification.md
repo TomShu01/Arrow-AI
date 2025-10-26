@@ -398,7 +398,7 @@ func update_project_entry(node_id: int) -> int
 - [x] Add project ID validation to disable AI panel when get_active_project_id() == -1
 - [x] Implement JSON message protocol with embedded arrow_content in user_message and function_result
 - [x] Add save-before-send logic in WebSocket adapter for user messages
-- [ ] Add save-after-execute logic in command dispatcher for function results (only on success)
+- [x] Add save-after-execute logic in command dispatcher for function results (only on success)
 - [ ] Create AI command dispatcher to map server commands to Mind functions
 - [ ] Modify central_mind.gd to save checkpoint when transitioning from IDLE to PROCESSING
 - [ ] Integrate auto-layout calculation for AI-created nodes at (0,0)

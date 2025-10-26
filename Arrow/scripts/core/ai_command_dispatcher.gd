@@ -78,10 +78,15 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 	
 	var result = { "success": false, "value": null, "error": "", "affected_nodes": {} }
 	
-	# Execute the function
+	# Execute the function with validation
 	match function_name:
 			# ===== NODE OPERATIONS =====
 			"create_insert_node":
+				# Validate required parameters
+				if not args.has("type") or args.get("type", "") == "":
+					result.error = "Missing required parameter: type"
+					return result
+				
 				var node_id = _mind.create_insert_node(
 					args.get("type", ""),
 					args.get("offset", Vector2.ZERO),
@@ -90,10 +95,21 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 					args.get("name_prefix", ""),
 					args.get("preset", {})
 				)
+				
+				# Validate node was created successfully
+				if node_id < 0:
+					result.error = "Failed to create node (invalid node_id returned)"
+					return result
+				
 				result.success = true
 				result.value = node_id
 			
 			"quick_insert_node":
+				# Validate required parameters
+				if not args.has("node_type") or args.get("node_type", "") == "":
+					result.error = "Missing required parameter: node_type"
+					return result
+				
 				_mind.quick_insert_node(
 					args.get("node_type", ""),
 					args.get("offset", Vector2.ZERO),
@@ -103,6 +119,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = "Node inserted successfully"
 			
 			"update_node":
+				# Validate required parameters
+				if not args.has("node_id") or args.get("node_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: node_id"
+					return result
+				
 				_mind.update_node(
 					args.get("node_id", -1),
 					args.get("name", ""),
@@ -114,6 +135,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = "Node updated successfully"
 			
 			"remove_node":
+				# Validate required parameters
+				if not args.has("node_id") or args.get("node_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: node_id"
+					return result
+				
 				var removed = _mind.remove_node(
 					args.get("node_id", -1),
 					args.get("forced", false)
@@ -122,6 +148,14 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = removed
 			
 			"update_node_map":
+				# Validate required parameters
+				if not args.has("node_id") or args.get("node_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: node_id"
+					return result
+				if not args.has("modification"):
+					result.error = "Missing required parameter: modification"
+					return result
+				
 				_mind.update_node_map(
 					args.get("node_id", -1),
 					args.get("modification", {}),
@@ -139,6 +173,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = "Scene created successfully"
 			
 			"update_scene":
+				# Validate required parameters
+				if not args.has("scene_id") or args.get("scene_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: scene_id"
+					return result
+				
 				_mind.update_scene(
 					args.get("scene_id", -1),
 					args.get("name", ""),
@@ -150,6 +189,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = "Scene updated successfully"
 			
 			"remove_scene":
+				# Validate required parameters
+				if not args.has("scene_id") or args.get("scene_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: scene_id"
+					return result
+				
 				var removed = _mind.remove_scene(
 					args.get("scene_id", -1),
 					args.get("forced", false)
@@ -159,6 +203,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 			
 			# ===== VARIABLE OPERATIONS =====
 			"create_new_variable":
+				# Validate required parameters
+				if not args.has("type") or args.get("type", "") == "":
+					result.error = "Missing required parameter: type"
+					return result
+				
 				_mind.create_new_variable(
 					args.get("type", "")
 				)
@@ -166,6 +215,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = "Variable created successfully"
 			
 			"update_variable":
+				# Validate required parameters
+				if not args.has("variable_id") or args.get("variable_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: variable_id"
+					return result
+				
 				_mind.update_variable(
 					args.get("variable_id", -1),
 					args.get("name", ""),
@@ -177,6 +231,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = "Variable updated successfully"
 			
 			"remove_variable":
+				# Validate required parameters
+				if not args.has("variable_id") or args.get("variable_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: variable_id"
+					return result
+				
 				var removed = _mind.remove_variable(
 					args.get("variable_id", -1),
 					args.get("forced", false)
@@ -191,6 +250,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = "Character created successfully"
 			
 			"update_character":
+				# Validate required parameters
+				if not args.has("character_id") or args.get("character_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: character_id"
+					return result
+				
 				_mind.update_character(
 					args.get("character_id", -1),
 					args.get("name", ""),
@@ -202,6 +266,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = "Character updated successfully"
 			
 			"remove_character":
+				# Validate required parameters
+				if not args.has("character_id") or args.get("character_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: character_id"
+					return result
+				
 				var removed = _mind.remove_character(
 					args.get("character_id", -1),
 					args.get("forced", false)
@@ -211,6 +280,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 			
 			# ===== UTILITY OPERATIONS =====
 			"node_connection_replacement":
+				# Validate required parameters
+				if not args.has("conversation_table"):
+					result.error = "Missing required parameter: conversation_table"
+					return result
+				
 				var replaced = _mind.node_connection_replacement(
 					args.get("conversation_table", {}),
 					args.get("remake_lost_connections", true)
@@ -220,6 +294,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 			
 			# ===== ENTRY POINT OPERATIONS =====
 			"update_scene_entry":
+				# Validate required parameters
+				if not args.has("node_id") or args.get("node_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: node_id"
+					return result
+				
 				var entry_id = _mind.update_scene_entry(
 					args.get("node_id", -1)
 				)
@@ -227,6 +306,11 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = entry_id
 			
 			"update_project_entry":
+				# Validate required parameters
+				if not args.has("node_id") or args.get("node_id", -1) < 0:
+					result.error = "Missing or invalid required parameter: node_id"
+					return result
+				
 				var entry_id = _mind.update_project_entry(
 					args.get("node_id", -1)
 				)
