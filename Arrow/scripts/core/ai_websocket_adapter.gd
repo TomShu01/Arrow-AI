@@ -189,9 +189,11 @@ func send_file_sync(project_id: int, arrow_content: String, timestamp: int = -1)
 	})
 
 func send_user_message(message: String, history: Array, selected_node_ids: Array = [], 
-					   current_scene_id: int = -1, current_project_id: int = -1) -> void:
+					   current_scene_id: int = -1, current_project_id: int = -1, 
+					   mind: CentralMind.Mind = null) -> void:
 	"""
-	Send user chat message to server
+	Send user chat message to server with embedded project content
+	Saves project before sending and embeds the complete .arrow file content
 	
 	Message format:
 	{
@@ -201,10 +203,19 @@ func send_user_message(message: String, history: Array, selected_node_ids: Array
 	    "history": array (chat history),
 	    "selected_node_ids": array of ints,
 	    "current_scene_id": int,
-	    "current_project_id": int
+	    "current_project_id": int,
+	    "arrow_content": string (complete .arrow file as JSON string)
 	  }
 	}
 	"""
+	# Save project before sending (if Mind reference provided)
+	if mind and mind.ProMan and mind.ProMan.is_project_listed():
+		mind.save_project()
+		print("[AIWebSocket] Project saved before sending user message")
+	
+	# Read arrow content
+	var arrow_content = _read_arrow_content(mind)
+	
 	send_message({
 		"type": "user_message",
 		"data": {
@@ -212,14 +223,16 @@ func send_user_message(message: String, history: Array, selected_node_ids: Array
 			"history": history,
 			"selected_node_ids": selected_node_ids,
 			"current_scene_id": current_scene_id,
-			"current_project_id": current_project_id
+			"current_project_id": current_project_id,
+			"arrow_content": arrow_content
 		}
 	})
 
 func send_function_result(request_id: String, success: bool, result = null, 
-						 error: String = "", affected_nodes: Dictionary = {}) -> void:
+						 error: String = "", arrow_content: String = "", 
+						 affected_nodes: Dictionary = {}) -> void:
 	"""
-	Send function execution result back to server
+	Send function execution result back to server with embedded project content
 	
 	Message format:
 	{
@@ -229,6 +242,7 @@ func send_function_result(request_id: String, success: bool, result = null,
 	    "success": bool,
 	    "result": any (on success),
 	    "error": string (on failure),
+	    "arrow_content": string (complete .arrow file as JSON string, on success),
 	    "affected_nodes": dict (on failure, optional)
 	  }
 	}
@@ -238,6 +252,7 @@ func send_function_result(request_id: String, success: bool, result = null,
 	  success: Whether the function executed successfully
 	  result: Return value of the function (included if success=true)
 	  error: Error message (included if success=false)
+	  arrow_content: Complete .arrow file content (included if success=true)
 	  affected_nodes: State of affected nodes for error recovery (included on error)
 	"""
 	var message: Dictionary = {
@@ -251,6 +266,9 @@ func send_function_result(request_id: String, success: bool, result = null,
 	if success:
 		if result != null:
 			message.data["result"] = result
+		# Include arrow_content on success (project was saved by dispatcher)
+		if arrow_content != "":
+			message.data["arrow_content"] = arrow_content
 	else:
 		if error != "":
 			message.data["error"] = error
@@ -427,6 +445,46 @@ func reset_stats() -> void:
 	bytes_received = 0
 	messages_sent = 0
 	messages_received = 0
+
+# ============================================================================
+# Arrow Content Reading
+# ============================================================================
+
+func _read_arrow_content(mind: CentralMind.Mind = null) -> String:
+	"""
+	Read the current .arrow project file content as a string
+	Returns empty string if unable to read
+	"""
+	if not mind or not mind.ProMan:
+		printerr("[AIWebSocket] Cannot read arrow content: Mind/ProMan not available")
+		return ""
+	
+	# Get project file path
+	var project_id = mind.ProMan.get_active_project_id()
+	if project_id < 0:
+		printerr("[AIWebSocket] No active project to read")
+		return ""
+	
+	var project_path = mind.ProMan.get_project_file_path(project_id)
+	if not project_path or project_path == "":
+		printerr("[AIWebSocket] Invalid project path")
+		return ""
+	
+	# Read file content
+	if not FileAccess.file_exists(project_path):
+		printerr("[AIWebSocket] Project file does not exist: ", project_path)
+		return ""
+	
+	var file = FileAccess.open(project_path, FileAccess.READ)
+	if not file:
+		printerr("[AIWebSocket] Cannot open project file: ", project_path)
+		return ""
+	
+	var content = file.get_as_text()
+	file.close()
+	
+	print("[AIWebSocket] Read arrow content (", content.length(), " bytes)")
+	return content
 
 # =============================================================================
 # API REFERENCE SUMMARY

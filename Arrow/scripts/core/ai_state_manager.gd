@@ -7,6 +7,7 @@
 # State flow: IDLE -> PROCESSING -> EXECUTING -> IDLE
 
 class_name AIStateManager
+extends Node
 
 # AI operation states
 enum AIState {
@@ -36,16 +37,16 @@ func _init():
 # State Query Functions
 # ============================================================================
 
-func is_idle() -> bool:
+func is_ai_idle() -> bool:
 	return current_state == AIState.IDLE
 
-func is_processing() -> bool:
+func is_ai_processing() -> bool:
 	return current_state == AIState.PROCESSING
 
-func is_executing() -> bool:
+func is_ai_executing() -> bool:
 	return current_state == AIState.EXECUTING
 
-func is_busy() -> bool:
+func is_ai_busy() -> bool:
 	return current_state != AIState.IDLE
 
 func get_current_state() -> AIState:
@@ -69,7 +70,7 @@ func get_state_name() -> String:
 # Start AI operation: IDLE -> PROCESSING
 # Saves checkpoint at current history index for potential rollback
 func start_operation(request_id: String, history_index: int) -> void:
-	if current_state != AIState.IDLE:
+	if not is_ai_idle():
 		printerr("AI State Manager: Cannot start operation, current state is ", get_state_name())
 		return
 	
@@ -86,7 +87,7 @@ func start_operation(request_id: String, history_index: int) -> void:
 
 # Begin command execution: PROCESSING -> EXECUTING
 func begin_execution() -> void:
-	if current_state != AIState.PROCESSING:
+	if not is_ai_processing():
 		printerr("AI State Manager: Cannot begin execution from state ", get_state_name())
 		return
 	
@@ -97,7 +98,7 @@ func begin_execution() -> void:
 # End AI operation: PROCESSING/EXECUTING -> IDLE
 # Clears checkpoint and operation tracking
 func end_operation() -> void:
-	if current_state == AIState.IDLE:
+	if is_ai_idle():
 		print("AI State Manager: Already IDLE, no operation to end")
 		return
 	
@@ -117,7 +118,7 @@ func end_operation() -> void:
 # Stop operation and request rollback: ANY -> IDLE
 # Emits operation_stopped signal for rollback handling
 func stop_operation() -> void:
-	if current_state == AIState.IDLE:
+	if is_ai_idle():
 		print("AI State Manager: No operation to stop (already IDLE)")
 		return
 	

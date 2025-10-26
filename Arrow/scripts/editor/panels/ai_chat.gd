@@ -260,10 +260,10 @@ func _send_message() -> void:
 	var current_scene_id = _get_current_scene_id()
 	var current_project_id = _get_current_project_id()
 	
-	# Send to server via WebSocket adapter
+	# Send to server via WebSocket adapter (with Mind reference for project saving)
 	if Main.has_node("AIWebSocketAdapter"):
 		var adapter = Main.get_node("AIWebSocketAdapter")
-		adapter.send_user_message(message, _chat_history, selected_nodes, current_scene_id, current_project_id)
+		adapter.send_user_message(message, _chat_history, selected_nodes, current_scene_id, current_project_id, Main.Mind)
 		start_streaming_ai_message()
 	else:
 		append_error_message("AIWebSocketAdapter not found!")
