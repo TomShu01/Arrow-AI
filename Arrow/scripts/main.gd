@@ -15,6 +15,11 @@ signal mind_initialized()
 @onready var Mind = CentralMind.Mind.new(self)
 @onready var Grid = $/root/Main/Editor/Centre_Wrapper/Center/Grid
 
+# AI Components
+var ai_websocket_adapter: AIWebSocketAdapter = null
+var ai_state_manager: AIStateManager = null
+var ai_command_dispatcher: AICommandDispatcher = null
+
 # Quick Preferences (defaults)
 @export var _AUTO_INSPECT:bool = true
 @export var _AUTO_NODE_UPDATE:bool = true
@@ -34,6 +39,8 @@ func _ready() -> void:
 	UI.setup_defaults_on_ui_and_quick_preferences()
 	UI.update_view_from_configuration(Configs.CONFIRMED)
 	Mind.post_initialization()
+	# Initialize AI components after Mind is ready
+	_initialize_ai_components()
 	self.mind_initialized.emit()
 	self.set_process_input(true)
 	# show about/welcome panel for browser version
@@ -80,6 +87,75 @@ func dynamically_update_local_app_dir(new_app_local_dir_path:String) -> void:
 
 func register_connections() -> void:
 	UI.register_connections()
+	pass
+
+func _initialize_ai_components() -> void:
+	"""Initialize AI WebSocket adapter, state manager, and command dispatcher"""
+	# Create AI State Manager
+	ai_state_manager = AIStateManager.new()
+	add_child(ai_state_manager)
+	ai_state_manager.set_name("AIStateManager")
+	print("[Main] AI State Manager initialized")
+	
+	# Create WebSocket Adapter
+	ai_websocket_adapter = AIWebSocketAdapter.new()
+	add_child(ai_websocket_adapter)
+	ai_websocket_adapter.set_name("AIWebSocketAdapter")
+	
+	# Get WebSocket URL from configuration
+	var ws_url = Configs.CONFIRMED.get("ai_websocket_url", "wss://arrow-ai.onrender.com/ws/chat")
+	ai_websocket_adapter.server_url = ws_url
+	print("[Main] AI WebSocket Adapter initialized (", ws_url, ")")
+	
+	# Create Command Dispatcher
+	ai_command_dispatcher = AICommandDispatcher.new()
+	add_child(ai_command_dispatcher)
+	ai_command_dispatcher.set_name("AICommandDispatcher")
+	ai_command_dispatcher.initialize(Mind, ai_websocket_adapter, ai_state_manager)
+	print("[Main] AI Command Dispatcher initialized")
+	
+	# Connect WebSocket adapter signals to state manager
+	ai_websocket_adapter.operation_start_received.connect(_on_ai_operation_start)
+	ai_websocket_adapter.operation_end_received.connect(_on_ai_operation_end)
+	
+	# Connect state manager stop signal to rollback handler
+	ai_state_manager.operation_stopped.connect(_on_ai_operation_stopped)
+	
+	print("[Main] AI components fully initialized and connected")
+	pass
+
+func _on_ai_operation_start(request_id: String) -> void:
+	"""Handle AI operation start - save checkpoint"""
+	if ai_state_manager and Mind:
+		# Save checkpoint at current history index
+		var history_index = Mind._HISTORY.INDEX if Mind._HISTORY else -1
+		ai_state_manager.start_operation(request_id, history_index)
+		print("[Main] AI operation started, checkpoint saved at index ", history_index)
+	pass
+
+func _on_ai_operation_end() -> void:
+	"""Handle AI operation end - return to IDLE"""
+	if ai_state_manager:
+		ai_state_manager.end_operation()
+		print("[Main] AI operation ended")
+	pass
+
+func _on_ai_operation_stopped() -> void:
+	"""Handle AI operation stop - rollback to saved checkpoint"""
+	if ai_state_manager and Mind:
+		var checkpoint_index = ai_state_manager.get_saved_checkpoint_index()
+		if checkpoint_index >= 0:
+			# Rollback to the saved checkpoint
+			if Mind.has_method("history_go_to"):
+				Mind.history_go_to(checkpoint_index)
+				print("[Main] Rolled back to checkpoint index ", checkpoint_index)
+			else:
+				printerr("[Main] Mind does not have history_go_to method")
+			
+			# Clear the checkpoint
+			ai_state_manager.clear_checkpoint()
+		else:
+			print("[Main] No checkpoint to rollback to")
 	pass
 
 func set_quick_preferences(preference:String, new_state:bool, refresh_view:bool = true) -> void:

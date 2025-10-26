@@ -42,8 +42,7 @@ enum ConnectionState {
 
 var connection_state: ConnectionState = ConnectionState.DISCONNECTED
 var websocket: WebSocketPeer
-var server_host: String = "localhost"
-var server_port: int = 8000
+var server_url: String = "wss://arrow-ai.onrender.com/ws/chat"
 
 # Message queue for sending messages
 var message_queue: Array[Dictionary] = []
@@ -116,24 +115,27 @@ func _process(_delta: float) -> void:
 			connection_error.emit(error_msg)
 			print("[AIWebSocket] ", error_msg)
 
-func connect_to_server(host: String = "", port: int = -1) -> bool:
-	"""Connect to the WebSocket server"""
+func connect_to_server(url: String = "") -> bool:
+	"""Connect to the WebSocket server using a full WebSocket URL"""
 	
-	# Use provided host/port or defaults
-	server_host = host if host != "" else server_host
-	server_port = port if port != -1 else server_port
+	# Use provided URL or default
+	if url != "":
+		server_url = url
 	
-	# Validate inputs
-	if server_host == "" or server_port <= 0:
-		printerr("[AIWebSocket] Invalid host or port: ", server_host, ":", server_port)
+	# Validate URL
+	if server_url == "":
+		printerr("[AIWebSocket] Invalid WebSocket URL: empty")
 		return false
 	
-	# Create connection URL
-	var url = "ws://%s:%d" % [server_host, server_port]
-	print("[AIWebSocket] Connecting to ", url)
+	# Validate URL format (should start with ws:// or wss://)
+	if not (server_url.begins_with("ws://") or server_url.begins_with("wss://")):
+		printerr("[AIWebSocket] Invalid WebSocket URL format: ", server_url, " (must start with ws:// or wss://)")
+		return false
+	
+	print("[AIWebSocket] Connecting to ", server_url)
 	
 	# Initialize connection
-	var error = websocket.connect_to_url(url)
+	var error = websocket.connect_to_url(server_url)
 	if error != OK:
 		connection_state = ConnectionState.ERROR
 		connection_state_changed.emit(connection_state)
@@ -189,9 +191,11 @@ func send_file_sync(project_id: int, arrow_content: String, timestamp: int = -1)
 	})
 
 func send_user_message(message: String, history: Array, selected_node_ids: Array = [], 
-					   current_scene_id: int = -1, current_project_id: int = -1) -> void:
+					   current_scene_id: int = -1, current_project_id: int = -1, 
+					   mind: CentralMind.Mind = null) -> void:
 	"""
-	Send user chat message to server
+	Send user chat message to server with embedded project content
+	Saves project before sending and embeds the complete .arrow file content
 	
 	Message format:
 	{
@@ -201,10 +205,41 @@ func send_user_message(message: String, history: Array, selected_node_ids: Array
 	    "history": array (chat history),
 	    "selected_node_ids": array of ints,
 	    "current_scene_id": int,
-	    "current_project_id": int
+	    "current_project_id": int,
+	    "arrow_content": string (complete .arrow file as JSON string)
 	  }
 	}
 	"""
+	# Validate Mind reference before attempting save
+	if not mind:
+		printerr("[AIWebSocket] Cannot send user message: Mind reference not provided")
+		connection_error.emit("Cannot send message: Mind reference not available")
+		return
+	
+	if not mind.ProMan:
+		printerr("[AIWebSocket] Cannot send user message: ProMan not available")
+		connection_error.emit("Cannot send message: Project Manager not available")
+		return
+	
+	# Save project before sending (ensures disk state matches in-memory state)
+	if mind.ProMan.is_project_listed():
+		print("[AIWebSocket] Saving project before sending user message...")
+		mind.save_project()
+		print("[AIWebSocket] Project saved successfully (ID: ", current_project_id, ")")
+	else:
+		printerr("[AIWebSocket] Warning: Project not listed, skipping save")
+	
+	# Read arrow content from disk (after save)
+	var arrow_content = _read_arrow_content(mind)
+	
+	# Validate arrow content was successfully read
+	if arrow_content.is_empty() and mind.ProMan.is_project_listed():
+		printerr("[AIWebSocket] Warning: Arrow content is empty for listed project ID ", current_project_id)
+		printerr("[AIWebSocket] Message will be sent with empty arrow_content - server may not have full context")
+	elif not arrow_content.is_empty():
+		print("[AIWebSocket] Arrow content embedded (", arrow_content.length(), " bytes)")
+	
+	# Send message with embedded project content
 	send_message({
 		"type": "user_message",
 		"data": {
@@ -212,14 +247,16 @@ func send_user_message(message: String, history: Array, selected_node_ids: Array
 			"history": history,
 			"selected_node_ids": selected_node_ids,
 			"current_scene_id": current_scene_id,
-			"current_project_id": current_project_id
+			"current_project_id": current_project_id,
+			"arrow_content": arrow_content
 		}
 	})
 
 func send_function_result(request_id: String, success: bool, result = null, 
-						 error: String = "", affected_nodes: Dictionary = {}) -> void:
+						 error: String = "", arrow_content: String = "", 
+						 affected_nodes: Dictionary = {}) -> void:
 	"""
-	Send function execution result back to server
+	Send function execution result back to server with embedded project content
 	
 	Message format:
 	{
@@ -229,6 +266,7 @@ func send_function_result(request_id: String, success: bool, result = null,
 	    "success": bool,
 	    "result": any (on success),
 	    "error": string (on failure),
+	    "arrow_content": string (complete .arrow file as JSON string, on success),
 	    "affected_nodes": dict (on failure, optional)
 	  }
 	}
@@ -238,6 +276,7 @@ func send_function_result(request_id: String, success: bool, result = null,
 	  success: Whether the function executed successfully
 	  result: Return value of the function (included if success=true)
 	  error: Error message (included if success=false)
+	  arrow_content: Complete .arrow file content (included if success=true)
 	  affected_nodes: State of affected nodes for error recovery (included on error)
 	"""
 	var message: Dictionary = {
@@ -251,6 +290,9 @@ func send_function_result(request_id: String, success: bool, result = null,
 	if success:
 		if result != null:
 			message.data["result"] = result
+		# Include arrow_content on success (project was saved by dispatcher)
+		if arrow_content != "":
+			message.data["arrow_content"] = arrow_content
 	else:
 		if error != "":
 			message.data["error"] = error
@@ -427,6 +469,46 @@ func reset_stats() -> void:
 	bytes_received = 0
 	messages_sent = 0
 	messages_received = 0
+
+# ============================================================================
+# Arrow Content Reading
+# ============================================================================
+
+func _read_arrow_content(mind: CentralMind.Mind = null) -> String:
+	"""
+	Read the current .arrow project file content as a string
+	Returns empty string if unable to read
+	"""
+	if not mind or not mind.ProMan:
+		printerr("[AIWebSocket] Cannot read arrow content: Mind/ProMan not available")
+		return ""
+	
+	# Get project file path
+	var project_id = mind.ProMan.get_active_project_id()
+	if project_id < 0:
+		printerr("[AIWebSocket] No active project to read")
+		return ""
+	
+	var project_path = mind.ProMan.get_project_file_path(project_id)
+	if not project_path or project_path == "":
+		printerr("[AIWebSocket] Invalid project path")
+		return ""
+	
+	# Read file content
+	if not FileAccess.file_exists(project_path):
+		printerr("[AIWebSocket] Project file does not exist: ", project_path)
+		return ""
+	
+	var file = FileAccess.open(project_path, FileAccess.READ)
+	if not file:
+		printerr("[AIWebSocket] Cannot open project file: ", project_path)
+		return ""
+	
+	var content = file.get_as_text()
+	file.close()
+	
+	print("[AIWebSocket] Read arrow content (", content.length(), " bytes)")
+	return content
 
 # =============================================================================
 # API REFERENCE SUMMARY
