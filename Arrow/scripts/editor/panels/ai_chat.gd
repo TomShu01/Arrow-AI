@@ -66,6 +66,17 @@ const CHAT_MESSAGE_PROPERTIES = {
 func _ready() -> void:
 	_register_connections()
 	_initialize_panel()
+	_setup_connecting_indicator()
+	pass
+
+func _setup_connecting_indicator() -> void:
+	"""Setup the connecting indicator to rotate around its center"""
+	if ConnectingIndicator:
+		# Wait for the label to be properly sized
+		await TheTree.process_frame
+		# Set pivot to center of the label
+		var label_size = ConnectingIndicator.size
+		ConnectingIndicator.pivot_offset = label_size / 2.0
 	pass
 
 func _register_connections() -> void:
