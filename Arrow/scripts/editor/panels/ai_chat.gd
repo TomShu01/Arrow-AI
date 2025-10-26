@@ -87,6 +87,7 @@ func connect_adapter_signals() -> void:
 		adapter.text_chunk_received.connect(self._on_text_chunk_received, CONNECT_DEFERRED)
 		adapter.connection_error.connect(self._on_connection_error, CONNECT_DEFERRED)
 		adapter.operation_end_received.connect(self._on_operation_end, CONNECT_DEFERRED)
+		adapter.message_received.connect(self._on_message_received, CONNECT_DEFERRED)
 		print("[AIChat] Connected to AIWebSocketAdapter signals")
 		
 		# Update UI to reflect current state
@@ -178,6 +179,80 @@ func append_ai_message(message: String) -> void:
 	_chat_history.append({"role": "assistant", "content": message})
 	pass
 
+func append_ai_message_block(message: String) -> void:
+	"""Display AI message as a new block (not streaming) - simple styling"""
+	print("[AIChat] Adding AI message block: ", message)
+	
+	# Create message container
+	var message_box = VBoxContainer.new()
+	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
+	
+	# Create message label - simple, normal size
+	var message_label = Label.new()
+	message_label.set_text(message)
+	message_label.set_h_size_flags(Control.SIZE_EXPAND_FILL)
+	message_label.set_autowrap_mode(TextServer.AUTOWRAP_WORD_SMART)
+	message_label.add_theme_color_override("font_color", Color(0.8, 0.9, 0.8))  # Light green
+	
+	message_box.add_child(message_label)
+	
+	# Add spacer
+	var spacer = Control.new()
+	spacer.set_custom_minimum_size(Vector2(0, 20))
+	message_box.add_child(spacer)
+	
+	# Add to chat immediately
+	ChatContainer.add_child(message_box)
+	_update_scroll_to_max()
+	
+	_chat_history.append({"role": "assistant", "content": message})
+	pass
+
+func append_function_call_block(function_name: String, arguments: Dictionary, request_id: String) -> void:
+	"""Display function call with custom UI block"""
+	print("[AIChat] Adding function call block: ", function_name)
+	
+	# Create message container
+	var message_box = VBoxContainer.new()
+	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
+	
+	# Create header with function icon/indicator
+	var header = HBoxContainer.new()
+	
+	var icon_label = Label.new()
+	icon_label.set_text("⚙️")
+	icon_label.add_theme_font_size_override("font_size", 16)
+	header.add_child(icon_label)
+	
+	var function_label = Label.new()
+	function_label.set_text("Calling: " + function_name)
+	function_label.add_theme_color_override("font_color", Color("FFA500"))  # Orange
+	function_label.add_theme_font_size_override("font_size", 14)
+	header.add_child(function_label)
+	
+	message_box.add_child(header)
+	
+	# Create arguments display (formatted JSON)
+	if arguments.size() > 0:
+		var args_label = Label.new()
+		var args_text = "Arguments: " + JSON.stringify(arguments, "  ")
+		args_label.set_text(args_text)
+		args_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+		args_label.add_theme_font_size_override("font_size", 12)
+		for property in CHAT_MESSAGE_PROPERTIES:
+			args_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
+		message_box.add_child(args_label)
+	
+	# Add spacer
+	var spacer = Control.new()
+	spacer.set_custom_minimum_size(Vector2(0, 20))
+	message_box.add_child(spacer)
+	
+	# Add to chat immediately
+	ChatContainer.add_child(message_box)
+	_update_scroll_to_max()
+	pass
+
 func append_system_message(message: String) -> void:
 	"""Display system message in chat"""
 	_add_message_to_chat("System", message, SYSTEM_MESSAGE_COLOR)
@@ -211,9 +286,9 @@ func _add_message_to_chat(sender: String, message: String, color: Color) -> void
 	message_box.add_child(sender_label)
 	message_box.add_child(message_label)
 	
-	# Add spacer
+	# Add spacer between messages
 	var spacer = Control.new()
-	spacer.set_custom_minimum_size(Vector2(0, 10))
+	spacer.set_custom_minimum_size(Vector2(0, 20))  # Increased spacing
 	message_box.add_child(spacer)
 	
 	# Add to chat
@@ -244,9 +319,9 @@ func _add_message_to_chat_immediate(sender: String, message: String, color: Colo
 	message_box.add_child(sender_label)
 	message_box.add_child(message_label)
 	
-	# Add spacer
+	# Add spacer between messages
 	var spacer = Control.new()
-	spacer.set_custom_minimum_size(Vector2(0, 10))
+	spacer.set_custom_minimum_size(Vector2(0, 20))  # Increased spacing
 	message_box.add_child(spacer)
 	
 	# Add to chat immediately (not deferred)
@@ -284,9 +359,9 @@ func start_streaming_ai_message() -> void:
 	message_box.add_child(sender_label)
 	message_box.add_child(_streaming_message_label)
 	
-	# Add spacer
+	# Add spacer between messages
 	var spacer = Control.new()
-	spacer.set_custom_minimum_size(Vector2(0, 10))
+	spacer.set_custom_minimum_size(Vector2(0, 20))  # Increased spacing
 	message_box.add_child(spacer)
 	
 	# Add to chat immediately (not deferred for correct ordering)
@@ -371,8 +446,8 @@ func _send_message() -> void:
 		var adapter = Main.get_node("AIWebSocketAdapter")
 		print("[AIChat] Calling send_user_message on adapter")
 		adapter.send_user_message(message, _chat_history, selected_nodes, current_scene_id, current_project_id, Main.Mind)
-		start_streaming_ai_message()
-		print("[AIChat] Started streaming message display")
+		# Don't start streaming message - we'll create blocks when messages arrive
+		print("[AIChat] Message sent, waiting for response")
 	else:
 		append_error_message("AIWebSocketAdapter not found!")
 	
@@ -460,6 +535,30 @@ func _on_operation_end() -> void:
 	"""Handle operation end signal - finalize streaming message"""
 	finish_streaming_ai_message()
 	print("[AIChat] AI operation ended, message finalized")
+	pass
+
+func _on_message_received(message_type: String, data: Dictionary) -> void:
+	"""Handle generic messages from server - for special UI blocks"""
+	print("[AIChat] Received message type: ", message_type)
+	
+	match message_type:
+		"chat_response":
+			# Create a new AI message block (not streaming)
+			var message = data.get("message", "")
+			if message != "":
+				append_ai_message_block(message)
+		
+		"function_call":
+			# Create a custom UI block for function calls
+			var function = data.get("function", "")
+			var arguments = data.get("arguments", {})
+			var request_id = data.get("request_id", "")
+			if function != "":
+				append_function_call_block(function, arguments, request_id)
+		
+		"connected", "end", "operation_end", "operation_start":
+			# Ignore these messages in UI (handled elsewhere)
+			pass
 	pass
 
 func _on_ai_state_changed(_new_state) -> void:

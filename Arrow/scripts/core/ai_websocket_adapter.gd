@@ -433,11 +433,10 @@ func handle_server_message(message_type: String, data: Dictionary) -> void:
 				text_chunk_received.emit(text)
 		
 		"chat_response":
-			# Complete chat response message
+			# Complete chat response message - create a new block
 			var message = data.get("message", "")
 			if message != "":
 				print("[AIWebSocket] Received chat_response: '", message, "'")
-				text_chunk_received.emit(message)
 		
 		"function_call":
 			# Command to execute via dispatcher
@@ -450,6 +449,7 @@ func handle_server_message(message_type: String, data: Dictionary) -> void:
 			print("[AIWebSocket] Function call - request_id: ", request_id, ", function: ", function_name)
 			
 			if request_id != "" and function_name != "":
+				# Emit execution signal (UI display handled by generic message_received at end)
 				function_call_received.emit(request_id, function_name, args)
 			else:
 				printerr("[AIWebSocket] Invalid function_call: missing request_id or function (got: ", request_id, ", ", function_name, ")")
