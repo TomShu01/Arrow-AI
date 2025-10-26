@@ -178,10 +178,15 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 					result.error = "Missing required parameter: modifications"
 					return result
 				
+				# Handle null scene_id (convert to -1)
+				var scene_id = args.get("scene_id", -1)
+				if scene_id == null:
+					scene_id = -1
+				
 				_mind.update_node_map(
 					args.get("node_id", -1),
 					args.get("modifications", {}),
-					args.get("scene_id", -1)
+					scene_id
 				)
 				result.success = true
 				result.value = "Node map updated successfully"
@@ -509,4 +514,3 @@ func _get_last_created_scene_id() -> int:
 		if id_int > max_id:
 			max_id = id_int
 	return max_id
-

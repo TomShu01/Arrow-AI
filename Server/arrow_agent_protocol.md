@@ -336,10 +336,10 @@ func update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1)
 
 ```json
 {
-  "from_node_id": 12,
-  "to_node_id": 15,
-  "from_slot": 0,  // optional, defaults to 0
-  "to_slot": 0     // optional, defaults to 0
+  "from_node_id": 12, // Source node ID
+  "to_node_id": 15, // Target node ID
+  "from_slot": 0, // Optional: output slot on source (default: 0)
+  "to_slot": 0 // Optional: input slot on target (default: 0)
 }
 ```
 
@@ -347,17 +347,63 @@ func update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1)
 
 ```json
 {
-  "success": true
+  "success": true,
+  "message": "Connection created from node 12 to node 15"
+}
+```
+
+**Examples:**
+
+```json
+// Simple connection (most common)
+{
+  "from_node_id": 2,
+  "to_node_id": 4
+}
+
+// Hub node with multiple choices
+// Choice 1 (slot 0) goes to node 10
+{
+  "from_node_id": 5,
+  "to_node_id": 10,
+  "from_slot": 0
+}
+// Choice 2 (slot 1) goes to node 11
+{
+  "from_node_id": 5,
+  "to_node_id": 11,
+  "from_slot": 1
+}
+// Choice 3 (slot 2) goes to node 12
+{
+  "from_node_id": 5,
+  "to_node_id": 12,
+  "from_slot": 2
+}
+
+// Condition node with true/false branches
+// True branch (slot 0) goes to node 20
+{
+  "from_node_id": 8,
+  "to_node_id": 20,
+  "from_slot": 0
+}
+// False branch (slot 1) goes to node 21
+{
+  "from_node_id": 8,
+  "to_node_id": 21,
+  "from_slot": 1
 }
 ```
 
 **Usage Notes:**
 
-- Most connections use slot 0 for both sides
-- Hub nodes have multiple output slots (one per choice)
-- Condition nodes have 2 output slots (0=true, 1=false)
-- Always create connections after creating nodes to ensure they're part of the story flow
+- Most connections use slot 0 for both sides (simple linear flow)
+- Hub nodes have multiple output slots (one per choice): slot 0, 1, 2, etc.
+- Condition nodes have 2 output slots: 0 = true branch, 1 = false branch
+- Always create connections AFTER creating both nodes
 - The tool internally calls `update_node_map` with the proper `io.push` structure
+- Connections are queued and drawn after nodes are rendered to avoid timing issues
 
 ---
 

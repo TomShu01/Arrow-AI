@@ -319,25 +319,39 @@ async def create_connection(
     Create a connection between two nodes to establish narrative flow.
     
     CRITICAL: All nodes must be connected to work in the story. A node without 
-    connections is orphaned and will never execute.
+    connections is orphaned and will never execute in the narrative.
+    
+    This tool:
+    1. Adds the connection to the Arrow project data
+    2. Queues the connection for visual rendering on the graph
+    3. Updates both nodes to reflect the connection
     
     Args:
-        from_node_id: ID of the source node (where the connection starts)
-        to_node_id: ID of the target node (where the connection goes to)
-        from_slot: Output slot index on source node (default: 0)
-                   - For most nodes, use 0
-                   - For hub nodes: 0 = first choice, 1 = second choice, etc.
-                   - For condition nodes: 0 = true branch, 1 = false branch
-        to_slot: Input slot index on target node (default: 0, rarely changed)
+        from_node_id: ID of the source node (where the arrow starts)
+        to_node_id: ID of the target node (where the arrow points to)
+        from_slot: Output slot on source node (default: 0)
+                   - Most nodes: always use 0
+                   - Hub nodes: 0 = first choice, 1 = second choice, 2 = third choice, etc.
+                   - Condition nodes: 0 = true branch, 1 = false branch
+        to_slot: Input slot on target node (default: 0, rarely needs to change)
     
     Returns:
-        Success message confirming the connection was created and drawn on the graph.
+        Success message with connection details.
     
-    Example:
-        create_connection(from_node_id=2, to_node_id=4)  # Simple connection
-        create_connection(from_node_id=5, to_node_id=6, from_slot=1)  # Hub choice 2
+    Examples:
+        # Simple linear connection (most common)
+        await create_connection(from_node_id=2, to_node_id=4)
+        
+        # Hub with 3 choices connecting to different nodes
+        await create_connection(from_node_id=5, to_node_id=10, from_slot=0)  # Choice 1
+        await create_connection(from_node_id=5, to_node_id=11, from_slot=1)  # Choice 2
+        await create_connection(from_node_id=5, to_node_id=12, from_slot=2)  # Choice 3
+        
+        # Condition with true/false branches
+        await create_connection(from_node_id=8, to_node_id=20, from_slot=0)  # True
+        await create_connection(from_node_id=8, to_node_id=21, from_slot=1)  # False
     """
-    # Use update_node_map to add connection
+    # Use update_node_map to add connection (it handles both data and visual drawing)
     return await send_function_call("update_node_map", {
         "node_id": from_node_id,
         "scene_id": current_context.get("scene_id"),

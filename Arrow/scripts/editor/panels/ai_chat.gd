@@ -595,8 +595,8 @@ func _get_selected_node_ids() -> Array:
 func _get_current_scene_id() -> int:
 	"""Get current scene ID"""
 	if Main.Mind:
-		if Main.Mind.has_method("get_current_scene_id"):
-			return Main.Mind.get_current_scene_id()
+		if Main.Mind.has_method("get_current_open_scene_id"):
+			return Main.Mind.get_current_open_scene_id()
 	return -1
 
 func _get_current_project_id() -> int:

@@ -63,11 +63,20 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 
                 # Update session context with arrow content and metadata
+                print(">>>> msg: ", msg)
                 session_state[session_id]["arrow_content"] = msg.arrow_content
-                if msg.current_scene_id:
+                if msg.current_scene_id is not None:
                     session_state[session_id]["current_scene_id"] = msg.current_scene_id
                 if msg.current_project_id:
                     session_state[session_id]["project_id"] = msg.current_project_id
+
+                # Update tools context with scene_id and arrow_file
+                from Arrow_AI_Backend.agent.tools.arrow_tools import set_context
+                set_context(
+                    session_id=session_id,
+                    scene_id=session_state[session_id].get("current_scene_id"),
+                    arrow_file=msg.arrow_content
+                )
 
                 print(f"[{session_id}] User message: {msg.message}")
                 
@@ -141,6 +150,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 from Arrow_AI_Backend.agent.tools.arrow_tools import set_function_result, set_context
                 
                 # Update context with new arrow file content
+                # Note: Preserve scene_id from session_state (set by user message), 
+                # don't replace it with data from function result
                 set_context(
                     session_id=session_id,
                     scene_id=session_state[session_id].get("current_scene_id"),

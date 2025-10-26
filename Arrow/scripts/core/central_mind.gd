@@ -1725,9 +1725,11 @@ class Mind :
 													"where there is no io at all!"
 												) % node_id
 											)
-							# Draw new connections on the grid
 							if connections_to_draw.size() > 0:
-								Grid.call_deferred("draw_connections_batch", connections_to_draw)
+								for connection in connections_to_draw:
+									Grid.queue_drawing_connection(connection)
+								# Draw all queued connections (deferred to ensure nodes are rendered first)
+								Grid.call_deferred("draw_queued_connection")
 							# Erase removed connections from the grid
 							if connections_to_erase.size() > 0:
 								for connection in connections_to_erase:
