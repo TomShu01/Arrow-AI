@@ -114,7 +114,7 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 					args.get("offset", Vector2.ZERO),
 					args.get("scene_id", -1),
 					args.get("draw", true),
-					args.get("name_prefix", ""),
+					args.get("name", ""),
 					args.get("preset", {})
 				)
 				
@@ -156,7 +156,7 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.success = true
 				result.value = "Node updated successfully"
 			
-			"remove_node":
+			"delete_node":
 				# Validate required parameters
 				if not args.has("node_id") or args.get("node_id", -1) < 0:
 					result.error = "Missing or invalid required parameter: node_id"
@@ -164,7 +164,7 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				
 				var removed = _mind.remove_node(
 					args.get("node_id", -1),
-					args.get("forced", false)
+					args.get("force", false)
 				)
 				result.success = true
 				result.value = removed
@@ -174,25 +174,42 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				if not args.has("node_id") or args.get("node_id", -1) < 0:
 					result.error = "Missing or invalid required parameter: node_id"
 					return result
-				if not args.has("modification"):
-					result.error = "Missing required parameter: modification"
+				if not args.has("modifications"):
+					result.error = "Missing required parameter: modifications"
 					return result
 				
 				_mind.update_node_map(
 					args.get("node_id", -1),
-					args.get("modification", {}),
+					args.get("modifications", {}),
 					args.get("scene_id", -1)
 				)
 				result.success = true
 				result.value = "Node map updated successfully"
 			
 			# ===== SCENE OPERATIONS =====
-			"create_new_scene":
-				_mind.create_new_scene(
-					args.get("is_macro", false)
-				)
-				result.success = true
-				result.value = "Scene created successfully"
+			"create_scene":
+				# Create scene with auto-generated name
+				_mind.create_new_scene(args.get("is_macro", false))
+				
+				# If name or notes are provided, update the newly created scene
+				if args.has("name") or args.has("notes"):
+					var scene_id = _get_last_created_scene_id()
+					if scene_id >= 0:
+						_mind.update_scene(
+							scene_id,
+							args.get("name", ""),
+							-1,
+							null,
+							args.get("notes", "")
+						)
+						result.success = true
+						result.value = scene_id
+					else:
+						result.error = "Scene created but could not be updated"
+						return result
+				else:
+					result.success = true
+					result.value = "Scene created successfully"
 			
 			"update_scene":
 				# Validate required parameters
@@ -210,7 +227,7 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.success = true
 				result.value = "Scene updated successfully"
 			
-			"remove_scene":
+			"delete_scene":
 				# Validate required parameters
 				if not args.has("scene_id") or args.get("scene_id", -1) < 0:
 					result.error = "Missing or invalid required parameter: scene_id"
@@ -218,23 +235,40 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				
 				var removed = _mind.remove_scene(
 					args.get("scene_id", -1),
-					args.get("forced", false)
+					args.get("force", false)
 				)
 				result.success = true
 				result.value = removed
 			
 			# ===== VARIABLE OPERATIONS =====
-			"create_new_variable":
+			"create_variable":
 				# Validate required parameters
 				if not args.has("type") or args.get("type", "") == "":
 					result.error = "Missing required parameter: type"
 					return result
 				
-				_mind.create_new_variable(
-					args.get("type", "")
-				)
-				result.success = true
-				result.value = "Variable created successfully"
+				# Create variable with auto-generated name
+				_mind.create_new_variable(args.get("type", ""))
+				
+				# If name, initial_value, or notes are provided, update the newly created variable
+				if args.has("name") or args.has("initial_value") or args.has("notes"):
+					var variable_id = _get_last_created_variable_id()
+					if variable_id >= 0:
+						_mind.update_variable(
+							variable_id,
+							args.get("name", ""),
+							"",
+							args.get("initial_value", null),
+							args.get("notes", "")
+						)
+						result.success = true
+						result.value = variable_id
+					else:
+						result.error = "Variable created but could not be updated"
+						return result
+				else:
+					result.success = true
+					result.value = "Variable created successfully"
 			
 			"update_variable":
 				# Validate required parameters
@@ -252,7 +286,7 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.success = true
 				result.value = "Variable updated successfully"
 			
-			"remove_variable":
+			"delete_variable":
 				# Validate required parameters
 				if not args.has("variable_id") or args.get("variable_id", -1) < 0:
 					result.error = "Missing or invalid required parameter: variable_id"
@@ -260,16 +294,35 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				
 				var removed = _mind.remove_variable(
 					args.get("variable_id", -1),
-					args.get("forced", false)
+					args.get("force", false)
 				)
 				result.success = true
 				result.value = removed
 			
 			# ===== CHARACTER OPERATIONS =====
-			"create_new_character":
+			"create_character":
+				# Create character with auto-generated name and color
 				_mind.create_new_character()
-				result.success = true
-				result.value = "Character created successfully"
+				
+				# If name, color, tags, or notes are provided, update the newly created character
+				if args.has("name") or args.has("color") or args.has("tags") or args.has("notes"):
+					var character_id = _get_last_created_character_id()
+					if character_id >= 0:
+						_mind.update_character(
+							character_id,
+							args.get("name", ""),
+							args.get("color", ""),
+							args.get("tags", {}),
+							args.get("notes", "")
+						)
+						result.success = true
+						result.value = character_id
+					else:
+						result.error = "Character created but could not be updated"
+						return result
+				else:
+					result.success = true
+					result.value = "Character created successfully"
 			
 			"update_character":
 				# Validate required parameters
@@ -287,7 +340,7 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.success = true
 				result.value = "Character updated successfully"
 			
-			"remove_character":
+			"delete_character":
 				# Validate required parameters
 				if not args.has("character_id") or args.get("character_id", -1) < 0:
 					result.error = "Missing or invalid required parameter: character_id"
@@ -295,7 +348,7 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				
 				var removed = _mind.remove_character(
 					args.get("character_id", -1),
-					args.get("forced", false)
+					args.get("force", false)
 				)
 				result.success = true
 				result.value = removed
@@ -315,7 +368,7 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.value = replaced
 			
 			# ===== ENTRY POINT OPERATIONS =====
-			"update_scene_entry":
+			"set_scene_entry":
 				# Validate required parameters
 				if not args.has("node_id") or args.get("node_id", -1) < 0:
 					result.error = "Missing or invalid required parameter: node_id"
@@ -327,7 +380,7 @@ func _execute_function(function_name: String, args: Dictionary) -> Dictionary:
 				result.success = true
 				result.value = entry_id
 			
-			"update_project_entry":
+			"set_project_entry":
 				# Validate required parameters
 				if not args.has("node_id") or args.get("node_id", -1) < 0:
 					result.error = "Missing or invalid required parameter: node_id"
@@ -423,4 +476,37 @@ func _rollback_one_step() -> void:
 func is_initialized() -> bool:
 	"""Check if dispatcher is properly initialized"""
 	return _mind != null and _adapter != null and _state_manager != null
+
+func _get_last_created_variable_id() -> int:
+	"""Get the ID of the most recently created variable"""
+	if not _mind or not _mind._PROJECT or not _mind._PROJECT.resources.has("variables"):
+		return -1
+	var max_id = -1
+	for var_id in _mind._PROJECT.resources.variables.keys():
+		var id_int = int(var_id)
+		if id_int > max_id:
+			max_id = id_int
+	return max_id
+
+func _get_last_created_character_id() -> int:
+	"""Get the ID of the most recently created character"""
+	if not _mind or not _mind._PROJECT or not _mind._PROJECT.resources.has("characters"):
+		return -1
+	var max_id = -1
+	for char_id in _mind._PROJECT.resources.characters.keys():
+		var id_int = int(char_id)
+		if id_int > max_id:
+			max_id = id_int
+	return max_id
+
+func _get_last_created_scene_id() -> int:
+	"""Get the ID of the most recently created scene"""
+	if not _mind or not _mind._PROJECT or not _mind._PROJECT.resources.has("scenes"):
+		return -1
+	var max_id = -1
+	for scene_id in _mind._PROJECT.resources.scenes.keys():
+		var id_int = int(scene_id)
+		if id_int > max_id:
+			max_id = id_int
+	return max_id
 

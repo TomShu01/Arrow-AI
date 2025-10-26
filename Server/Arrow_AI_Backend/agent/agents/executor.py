@@ -17,7 +17,14 @@ RULES:
 4. If a step says "check if X exists", use a query tool (get_character, get_variable, etc.)
 5. Use the results from earlier steps in later steps (e.g., use the character ID you found/created).
 
-When done, summarize what you accomplished."""
+CRITICAL - CONNECTIONS ARE MANDATORY:
+6. When you create a node, you MUST connect it to the story flow.
+7. Track node IDs carefully - you need them to create connections.
+8. If a step involves creating content, always verify it has connections (both FROM and TO).
+9. A node without connections won't work in the story - it will be orphaned.
+10. When connecting nodes, make sure you connect the right output/input ports.
+
+When done, summarize what you accomplished and verify all nodes are properly connected."""
 
 # Create the executor agent with Arrow tools
 # Using llm_smart (lower temperature) for more consistent, deterministic execution

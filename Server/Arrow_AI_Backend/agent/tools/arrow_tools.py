@@ -119,9 +119,11 @@ async def create_dialog_node(
         "name": name,
         "scene_id": scene_id or current_context.get("scene_id"),
         "preset": {
-            "character": character_id,
-            "lines": lines,
-            "playable": True
+            "data": {
+                "character": character_id,
+                "lines": lines,
+                "playable": True
+            }
         }
     })
 
@@ -149,11 +151,13 @@ async def create_content_node(
         "name": name,
         "scene_id": scene_id or current_context.get("scene_id"),
         "preset": {
-            "title": title,
-            "content": content,
-            "brief": 50,
-            "auto_play": auto_play,
-            "clear": False
+            "data": {
+                "title": title,
+                "content": content,
+                "brief": 50,
+                "auto_play": auto_play,
+                "clear": False
+            }
         }
     })
 
@@ -177,7 +181,9 @@ async def create_hub_node(
         "name": name,
         "scene_id": scene_id or current_context.get("scene_id"),
         "preset": {
-            "options": options
+            "data": {
+                "options": options
+            }
         }
     })
 
@@ -206,11 +212,13 @@ async def create_condition_node(
         "name": name,
         "scene_id": scene_id or current_context.get("scene_id"),
         "preset": {
-            "variable": variable_id,
-            "operator": operator,
-            "compare_to": {
-                "type": "value",
-                "value": compare_value
+            "data": {
+                "variable": variable_id,
+                "operator": operator,
+                "compare_to": {
+                    "type": "value",
+                    "value": compare_value
+                }
             }
         }
     })
@@ -239,11 +247,13 @@ async def create_variable_update_node(
         "name": name,
         "scene_id": scene_id or current_context.get("scene_id"),
         "preset": {
-            "variable": variable_id,
-            "operation": operation,
-            "value": {
-                "type": "value",
-                "value": value
+            "data": {
+                "variable": variable_id,
+                "operation": operation,
+                "value": {
+                    "type": "value",
+                    "value": value
+                }
             }
         }
     })
@@ -268,11 +278,11 @@ async def update_node(
         notes: Optional new notes
     """
     args = {"node_id": node_id}
-    if name is not None:
+    if name is not None and name != "":
         args["name"] = name
     if data is not None:
         args["data"] = data
-    if notes is not None:
+    if notes is not None and notes != "":
         args["notes"] = notes
     
     return await send_function_call("update_node", args)
@@ -371,12 +381,15 @@ async def create_variable(
         initial_value: Starting value for the variable
         notes: Optional description/notes
     """
-    return await send_function_call("create_variable", {
-        "name": name,
-        "type": var_type,
-        "initial_value": initial_value,
-        "notes": notes
-    })
+    args = {"type": var_type}
+    if name:
+        args["name"] = name
+    if initial_value is not None:
+        args["initial_value"] = initial_value
+    if notes:
+        args["notes"] = notes
+    
+    return await send_function_call("create_variable", args)
 
 
 @tool
@@ -396,11 +409,11 @@ async def update_variable(
         notes: Optional new notes
     """
     args = {"variable_id": variable_id}
-    if name is not None:
+    if name is not None and name != "":
         args["name"] = name
     if initial_value is not None:
         args["initial_value"] = initial_value
-    if notes is not None:
+    if notes is not None and notes != "":
         args["notes"] = notes
     
     return await send_function_call("update_variable", args)
@@ -442,12 +455,17 @@ async def create_character(
         tags: Optional tags/metadata for the character
         notes: Optional description/notes
     """
-    return await send_function_call("create_character", {
-        "name": name,
-        "color": color,
-        "tags": tags or {},
-        "notes": notes
-    })
+    args = {}
+    if name:
+        args["name"] = name
+    if color and color != "#4A90E2":
+        args["color"] = color
+    if tags:
+        args["tags"] = tags
+    if notes:
+        args["notes"] = notes
+    
+    return await send_function_call("create_character", args)
 
 
 @tool
@@ -469,13 +487,13 @@ async def update_character(
         notes: Optional new notes
     """
     args = {"character_id": character_id}
-    if name is not None:
+    if name is not None and name != "":
         args["name"] = name
-    if color is not None:
+    if color is not None and color != "":
         args["color"] = color
     if tags is not None:
         args["tags"] = tags
-    if notes is not None:
+    if notes is not None and notes != "":
         args["notes"] = notes
     
     return await send_function_call("update_character", args)
@@ -515,11 +533,13 @@ async def create_scene(
         is_macro: If true, creates a macro (reusable sub-graph)
         notes: Optional description/notes
     """
-    return await send_function_call("create_scene", {
-        "name": name,
-        "is_macro": is_macro,
-        "notes": notes
-    })
+    args = {"is_macro": is_macro}
+    if name:
+        args["name"] = name
+    if notes:
+        args["notes"] = notes
+    
+    return await send_function_call("create_scene", args)
 
 
 @tool
@@ -537,9 +557,9 @@ async def update_scene(
         notes: Optional new notes
     """
     args = {"scene_id": scene_id}
-    if name is not None:
+    if name is not None and name != "":
         args["name"] = name
-    if notes is not None:
+    if notes is not None and notes != "":
         args["notes"] = notes
     
     return await send_function_call("update_scene", args)

@@ -22,12 +22,19 @@ planner_prompt = ChatPromptTemplate.from_messages(
    - Don't create a new variable if it already exists
    - Reference existing resources by their properties
 
-3. **LOGICAL ORDER**: Steps must follow dependencies
+3. **EVERYTHING MUST BE CONNECTED**: The narrative is a graph - disconnected nodes won't execute
+   - ALWAYS plan where new nodes connect FROM (what leads to them)
+   - ALWAYS plan where new nodes connect TO (what they lead to)
+   - When creating new content, identify the entry point in the existing story
+   - If creating multiple nodes, plan the full connection chain
+   - A node without connections is useless and won't appear in the story
+
+4. **LOGICAL ORDER**: Steps must follow dependencies
    - Verify/create resources → Use those resources
-   - Create nodes → Connect nodes
+   - Create nodes → Connect nodes in the right sequence
    - Check existence → Make decisions based on results
 
-4. **RETURN PLAIN SENTENCES**: No numbers, no bullet points (they're added later)
+5. **RETURN PLAIN SENTENCES**: No numbers, no bullet points (they're added later)
 
 ## What Arrow Can Do
 
@@ -45,14 +52,20 @@ Write plans as natural, high-level steps. Focus on INTENT, not exact tool names.
 
 **Good Examples:**
 - "Check if Elena character exists"
+- "Find where to insert the new dialog in the story flow"
 - "Create a dialog where Elena offers to help"
 - "Add player choice between accepting or refusing"
 - "Connect the dialog to the choice hub"
+- "Connect the choice hub to the next scene"
 
 **Bad Examples (too technical):**
 - "Use get_character with name='Elena'"
 - "Call create_dialog_node with character_id=3"
 - "Execute update_node_map to add connection"
+
+**Bad Examples (missing connections):**
+- "Create a dialog for Elena" (Where does it connect? What leads to it?)
+- "Add a choice hub" (What triggers it? Where do choices lead?)
 
 ## Example Plans
 
@@ -68,9 +81,13 @@ User: "Create a dialog where Elena offers help, then add player choices to accep
 Plan:
 Check if Elena character exists
 If Elena doesn't exist, create her as a character
+Find the current position in the story to insert this content
 Create a dialog node where Elena offers to help
 Create a choice hub with "Accept help" and "Refuse help" options
-Connect the dialog to the choice hub
+Connect the previous node to Elena's dialog
+Connect Elena's dialog to the choice hub
+Create placeholder nodes for both choice outcomes
+Connect each choice to its respective outcome
 
 ### Example 3: Variable-Based System
 User: "Add a health system that tracks player health from 0 to 100"
@@ -86,8 +103,12 @@ Connect the condition to both outcomes (death branch and continue branch)
 User: "Add a new dialog for Marcus talking about the weather"
 Plan:
 Check if Marcus exists and get his info
+Find existing Marcus dialogs to understand where this fits in the story
+Identify the connection point (what node should lead to this dialog)
 Create a new dialog node for Marcus about the weather
-Report that the dialog was created
+Connect the previous node to this new dialog
+Determine what this dialog should lead to and create that connection
+Report that the dialog was created and connected
 
 ### Example 5: Information About Structure
 User: "Show me all the choice points in the current scene"
@@ -96,9 +117,11 @@ Find all hub nodes in the current scene
 For each hub, get its connections to see what it leads to
 Present the complete choice structure to the user
 
-## Key Principle
+## Key Principles
 
-**Always be context-aware.** Check what exists, reuse resources, and order steps logically. The executor will figure out which specific tools to use - you just plan the strategy.""",
+1. **Always be context-aware.** Check what exists, reuse resources, and order steps logically.
+2. **Think like a graph builder.** Every node needs an entrance and an exit. Plan the full connection path.
+3. **The executor will figure out which specific tools to use** - you just plan the strategy and the connection logic.""",
         ),
         ("placeholder", "{messages}"),
     ]
