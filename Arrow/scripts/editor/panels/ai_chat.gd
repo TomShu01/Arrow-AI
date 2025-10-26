@@ -14,9 +14,11 @@ extends Control
 # UI Components
 @onready var ChatScroll = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Chat/Scroll
 @onready var ChatContainer = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Chat/Scroll/Messages
-@onready var InputField = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/Field
+@onready var InputContainer = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input
+@onready var InputField = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/FieldScroll/Field
 @onready var SendButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/Send
 @onready var ConnectionStatus = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Status
+@onready var ConnectingIndicator = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/ConnectingIndicator
 @onready var ConnectButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Connect
 @onready var StopButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Stop
 @onready var ClearButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Clear
@@ -37,11 +39,67 @@ var _resize_start_panel_width: float
 const MIN_PANEL_WIDTH: float = 250.0
 const MAX_PANEL_WIDTH: float = 800.0
 
+# Input field auto-resize
+const MIN_INPUT_HEIGHT: float = 40.0
+const MAX_INPUT_HEIGHT: float = 200.0
+const LINE_HEIGHT: float = 20.0
+var _previous_line_count: int = 1
+
+# Connection indicator rotation
+var _indicator_rotation: float = 0.0
+const INDICATOR_ROTATION_SPEED: float = 180.0  # degrees per second
+
 # Color constants
 const USER_MESSAGE_COLOR = Color("0fcbf4")  # Cyan - from Settings.PEACE_COLOR
 const AI_MESSAGE_COLOR = Color.GREEN_YELLOW  # From Settings.INFO_COLOR
 const ERROR_MESSAGE_COLOR = Color("ff0bb1")  # Red - from Settings.WARNING_COLOR
 const SYSTEM_MESSAGE_COLOR = Color.YELLOW  # From Settings.CAUTION_COLOR
+const ANONYMOUS_MESSAGE_COLOR = Color.GRAY
+
+# Function name to human-readable description mapping
+# Maps API function names to user-friendly descriptions
+# Supports both Project-Specification.md API and arrow_tools.py implementation
+const FUNCTION_DISPLAY_NAMES = {
+	# Create and insert nodes
+	"create_insert_node": "Creating a new node",
+	"quick_insert_node": "Adding a node",
+	"update_node": "Updating a node",
+	"remove_node": "Removing a node",
+	"delete_node": "Removing a node",
+	
+	# Update node properties and connections
+	"update_node_map": "Adding connections",
+	
+	# Scene operations
+	"create_new_scene": "Creating a new scene",
+	"create_scene": "Creating a new scene",
+	"update_scene": "Updating a scene",
+	"remove_scene": "Removing a scene",
+	"delete_scene": "Removing a scene",
+	
+	# Variables
+	"create_new_variable": "Creating a variable",
+	"create_variable": "Creating a variable",
+	"update_variable": "Updating a variable",
+	"remove_variable": "Removing a variable",
+	"delete_variable": "Removing a variable",
+	
+	# Characters
+	"create_new_character": "Creating a character",
+	"create_character": "Creating a character",
+	"update_character": "Updating a character",
+	"remove_character": "Removing a character",
+	"delete_character": "Removing a character",
+	
+	# Utility functions
+	"node_connection_replacement": "Replacing connections",
+	
+	# Entry points
+	"update_scene_entry": "Setting scene entry point",
+	"set_scene_entry": "Setting scene entry point",
+	"update_project_entry": "Setting project entry point",
+	"set_project_entry": "Setting project entry point",
+}
 
 # Message display properties
 const CHAT_MESSAGE_PROPERTIES = {
@@ -53,6 +111,17 @@ const CHAT_MESSAGE_PROPERTIES = {
 func _ready() -> void:
 	_register_connections()
 	_initialize_panel()
+	_setup_connecting_indicator()
+	pass
+
+func _setup_connecting_indicator() -> void:
+	"""Setup the connecting indicator to rotate around its center"""
+	if ConnectingIndicator:
+		# Wait for the label to be properly sized
+		await TheTree.process_frame
+		# Set pivot to center of the label
+		var label_size = ConnectingIndicator.size
+		ConnectingIndicator.pivot_offset = label_size / 2.0
 	pass
 
 func _register_connections() -> void:
@@ -64,7 +133,8 @@ func _register_connections() -> void:
 	StopButton.pressed.connect(self._on_stop_button_pressed, CONNECT_DEFERRED)
 	
 	# Input field connections
-	InputField.text_submitted.connect(self._on_input_text_submitted, CONNECT_DEFERRED)
+	InputField.text_changed.connect(self._on_input_text_changed, CONNECT_DEFERRED)
+	InputField.gui_input.connect(self._on_input_field_gui_input)
 	
 	# Resize handle connections
 	ResizeHandle.gui_input.connect(self._on_resize_handle_input)
@@ -109,9 +179,10 @@ func _initialize_panel() -> void:
 	
 	# Display welcome message only if valid project is open
 	if _is_valid_project_open():
-		append_system_message("AI Agent Ready. Connect to server to begin.")
-	else:
-		append_system_message("No project open. Open or create a named project to use AI features.")
+		clear_chat()
+		append_system_message("Connect to assistant to begin.")
+	# else:
+	# 	append_system_message("No project open. Open or create a named project to use AI features.")
 	pass
 
 # ============================================================================
@@ -121,34 +192,55 @@ func _initialize_panel() -> void:
 func _update_ui_from_state() -> void:
 	"""Update UI elements based on connection and AI state"""
 	var is_valid_project = _is_valid_project_open()
+	var connection_state = _get_connection_state()
 	var is_server_connected = _is_websocket_connected()
 	var ai_state = _get_ai_state()
 	var is_busy = (ai_state != null and ai_state != 0)  # Not IDLE
 	
 	# Show/hide disabled overlay based on project validation
 	if DisabledOverlay:
-		DisabledOverlay.set_visible(not is_valid_project)
+		if not is_valid_project:
+			clear_chat()
+			DisabledOverlay.set_visible(true)
+		else:
+			DisabledOverlay.set_visible(false)
 	
 	# Disable all interactive controls when no valid project
 	var controls_enabled = is_valid_project
 	
-	# Update connection status indicator
-	if is_server_connected:
+	# Update connection status indicator based on state
+	var is_connecting = (connection_state == 1)  # CONNECTING state
+	var is_error = (connection_state == 4)  # ERROR state
+	
+	if is_connecting:
+		ConnectionStatus.set_text("◌ Connecting...")
+		ConnectionStatus.add_theme_color_override("font_color", Color.YELLOW)
+		ConnectingIndicator.set_visible(true)
+	elif is_server_connected:
 		ConnectionStatus.set_text("● Connected")
 		ConnectionStatus.add_theme_color_override("font_color", Color.GREEN)
+		ConnectingIndicator.set_visible(false)
+	elif is_error:
+		ConnectionStatus.set_text("○ Connection Failed")
+		ConnectionStatus.add_theme_color_override("font_color", Color.RED)
+		ConnectingIndicator.set_visible(false)
 	else:
 		ConnectionStatus.set_text("○ Disconnected")
 		ConnectionStatus.add_theme_color_override("font_color", Color.GRAY)
+		ConnectingIndicator.set_visible(false)
 	
-	# Update button states (disabled if no valid project)
-	ConnectButton.set_disabled(is_server_connected or not controls_enabled)
+	# Update button states
+	# Connect button: disabled only when connecting or no valid project
+	# When connected, it becomes "Disconnect" and is enabled
+	# When disconnected or error, it says "Connect" and is enabled
+	ConnectButton.set_disabled(is_connecting or not controls_enabled)
 	ConnectButton.set_text("Disconnect" if is_server_connected else "Connect")
 	
 	StopButton.set_visible(is_busy and controls_enabled)
 	StopButton.set_disabled(not is_busy or not controls_enabled)
 	
 	SendButton.set_disabled(not is_server_connected or is_busy or not controls_enabled)
-	InputField.set_editable(is_server_connected and not is_busy and controls_enabled)
+	InputField.editable = is_server_connected and not is_busy and controls_enabled
 	ClearButton.set_disabled(not controls_enabled)
 	
 	pass
@@ -175,7 +267,7 @@ func append_user_message(message: String) -> void:
 
 func append_ai_message(message: String) -> void:
 	"""Display complete AI message in chat"""
-	_add_message_to_chat("AI", message, AI_MESSAGE_COLOR)
+	_add_message_to_chat("Assistant", message, AI_MESSAGE_COLOR)
 	_chat_history.append({"role": "assistant", "content": message})
 	pass
 
@@ -224,24 +316,16 @@ func append_function_call_block(function_name: String, arguments: Dictionary, re
 	icon_label.add_theme_font_size_override("font_size", 16)
 	header.add_child(icon_label)
 	
+	# Get human-readable function description from mapping
+	var display_text = FUNCTION_DISPLAY_NAMES.get(function_name, "Executing: " + function_name)
+	
 	var function_label = Label.new()
-	function_label.set_text("Calling: " + function_name)
+	function_label.set_text(display_text + "...")
 	function_label.add_theme_color_override("font_color", Color("FFA500"))  # Orange
 	function_label.add_theme_font_size_override("font_size", 14)
 	header.add_child(function_label)
 	
 	message_box.add_child(header)
-	
-	# Create arguments display (formatted JSON)
-	if arguments.size() > 0:
-		var args_label = Label.new()
-		var args_text = "Arguments: " + JSON.stringify(arguments, "  ")
-		args_label.set_text(args_text)
-		args_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-		args_label.add_theme_font_size_override("font_size", 12)
-		for property in CHAT_MESSAGE_PROPERTIES:
-			args_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
-		message_box.add_child(args_label)
 	
 	# Add spacer
 	var spacer = Control.new()
@@ -251,6 +335,11 @@ func append_function_call_block(function_name: String, arguments: Dictionary, re
 	# Add to chat immediately
 	ChatContainer.add_child(message_box)
 	_update_scroll_to_max()
+	pass
+
+func append_anonymous_message(message: String) -> void:
+	"""Display anonymous message in chat"""
+	_add_message_to_chat("", message, Color.WHITE, ANONYMOUS_MESSAGE_COLOR)
 	pass
 
 func append_system_message(message: String) -> void:
@@ -263,27 +352,31 @@ func append_error_message(message: String) -> void:
 	_add_message_to_chat("Error", message, ERROR_MESSAGE_COLOR)
 	pass
 
-func _add_message_to_chat(sender: String, message: String, color: Color) -> void:
+func _add_message_to_chat(sender: String, message: String, sender_color: Color, message_color: Color = Color.WHITE) -> void:
 	"""Internal method to add formatted message to chat display (deferred)"""
 	# Create message container
 	var message_box = VBoxContainer.new()
 	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
 	
 	# Create sender label
-	var sender_label = Label.new()
-	sender_label.set_text(sender + ":")
-	sender_label.add_theme_color_override("font_color", color)
-	sender_label.add_theme_font_size_override("font_size", 14)
+	var sender_label
+	if sender != "":
+		sender_label = Label.new()
+		sender_label.set_text(sender + ":")
+		sender_label.add_theme_color_override("font_color", sender_color)
+		sender_label.add_theme_font_size_override("font_size", 14)
 	
 	# Create message label
 	var message_label = Label.new()
 	message_label.set_text(message)
 	for property in CHAT_MESSAGE_PROPERTIES:
 		message_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
-	message_label.add_theme_color_override("font_color", Color.WHITE)
+	message_label.add_theme_color_override("font_color", message_color)
 	
 	# Add to container
-	message_box.add_child(sender_label)
+	if (sender != ""):
+		message_box.add_child(sender_label)
+	
 	message_box.add_child(message_label)
 	
 	# Add spacer between messages
@@ -296,27 +389,30 @@ func _add_message_to_chat(sender: String, message: String, color: Color) -> void
 	self.call_deferred("_update_scroll_to_max")
 	pass
 
-func _add_message_to_chat_immediate(sender: String, message: String, color: Color) -> void:
+func _add_message_to_chat_immediate(sender: String, message: String, sender_color: Color, message_color: Color = Color.WHITE) -> void:
 	"""Internal method to add formatted message to chat display (immediate, for correct ordering)"""
 	# Create message container
 	var message_box = VBoxContainer.new()
 	message_box.set_h_size_flags(Control.SIZE_EXPAND_FILL)
 	
 	# Create sender label
-	var sender_label = Label.new()
-	sender_label.set_text(sender + ":")
-	sender_label.add_theme_color_override("font_color", color)
-	sender_label.add_theme_font_size_override("font_size", 14)
+	var sender_label
+	if sender != "":
+		sender_label = Label.new()
+		sender_label.set_text(sender + ":")
+		sender_label.add_theme_color_override("font_color", sender_color)
+		sender_label.add_theme_font_size_override("font_size", 14)
 	
 	# Create message label
 	var message_label = Label.new()
 	message_label.set_text(message)
 	for property in CHAT_MESSAGE_PROPERTIES:
 		message_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
-	message_label.add_theme_color_override("font_color", Color.WHITE)
+	message_label.add_theme_color_override("font_color", message_color)
 	
 	# Add to container
-	message_box.add_child(sender_label)
+	if sender != "":
+		message_box.add_child(sender_label)
 	message_box.add_child(message_label)
 	
 	# Add spacer between messages
@@ -402,7 +498,6 @@ func clear_chat() -> void:
 		child.queue_free()
 	_chat_history.clear()
 	_current_ai_message = ""
-	append_system_message("Chat cleared.")
 	pass
 
 # ============================================================================
@@ -414,20 +509,35 @@ func _on_send_button_pressed() -> void:
 	_send_message()
 	pass
 
-func _on_input_text_submitted(_text: String) -> void:
-	"""Handle Enter key in input field"""
-	_send_message()
+func _on_input_field_gui_input(event: InputEvent) -> void:
+	"""Handle keyboard shortcuts in input field"""
+	if event is InputEventKey and event.pressed:
+		# Enter to send message, Shift+Enter for new line
+		if (event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER):
+			if event.shift_pressed:
+				# Allow new line on Shift+Enter (default TextEdit behavior)
+				pass
+			else:
+				# Send message on Enter
+				_send_message()
+				InputField.accept_event()  # Prevent default behavior
+	pass
+
+func _on_input_text_changed() -> void:
+	"""Handle text changes in input field to auto-resize"""
+	_auto_resize_input_field()
 	pass
 
 func _send_message() -> void:
 	"""Send user message to AI server"""
-	var message = InputField.get_text().strip_edges()
+	var message = InputField.text.strip_edges()
 	
 	if message.length() == 0:
 		return
 	
 	# Clear input field
-	InputField.set_text("")
+	InputField.text = ""
+	_reset_input_field_height()
 	
 	# Display user message
 	append_user_message(message)
@@ -511,13 +621,16 @@ func _on_connection_state_changed(new_state) -> void:
 		
 		match new_state:
 			2:  # CONNECTED
-				append_system_message("Connected to AI server")
+				clear_chat()
+				append_ai_message("How may I help you?")
 				# Sync project file on connection
 				_sync_project_file()
 			0:  # DISCONNECTED
-				append_system_message("Disconnected from AI server")
+				clear_chat()
+				append_ai_message("Goodbye.")
 			4:  # ERROR
-				append_error_message("Connection error")
+				clear_chat()
+				append_error_message("Connection Error. Please reconnect.")
 	pass
 
 func _on_text_chunk_received(text: String) -> void:
@@ -577,6 +690,13 @@ func _is_websocket_connected() -> bool:
 		return adapter.is_server_connected()
 	return false
 
+func _get_connection_state():
+	"""Get current connection state from adapter"""
+	if Main.has_node("AIWebSocketAdapter"):
+		var adapter = Main.get_node("AIWebSocketAdapter")
+		return adapter.connection_state
+	return 0  # DISCONNECTED
+
 func _get_ai_state():
 	"""Get current AI state"""
 	if Main.has_node("AIStateManager"):
@@ -634,21 +754,49 @@ func notify_project_opened() -> void:
 	"""Called by Mind when a valid project is opened"""
 	_update_ui_from_state()
 	if _is_valid_project_open():
-		append_system_message("Project opened. AI Agent ready.")
+		append_anonymous_message("Connect to begin...")
 	pass
 
 func notify_project_closed() -> void:
 	"""Called by Mind when project is closed (switches to blank)"""
 	_update_ui_from_state()
-	append_system_message("Project closed. Open a named project to use AI features.")
+	# append_system_message("Project closed. Open a named project to use AI features.")
+	pass
+
+# ============================================================================
+# Input Field Auto-Resize Functionality
+# ============================================================================
+
+func _auto_resize_input_field() -> void:
+	"""Automatically resize input field based on content"""
+	var line_count = InputField.get_line_count()
+	
+	# Only resize if line count changed
+	if line_count != _previous_line_count:
+		_previous_line_count = line_count
+		
+		# Calculate new height based on line count
+		var new_height = LINE_HEIGHT * line_count + 10  # 10px padding
+		new_height = clamp(new_height, MIN_INPUT_HEIGHT, MAX_INPUT_HEIGHT)
+		
+		# Update input container height
+		InputContainer.custom_minimum_size.y = new_height
+		InputField.custom_minimum_size.y = new_height
+	pass
+
+func _reset_input_field_height() -> void:
+	"""Reset input field to minimum height"""
+	_previous_line_count = 1
+	InputContainer.custom_minimum_size.y = MIN_INPUT_HEIGHT
+	InputField.custom_minimum_size.y = MIN_INPUT_HEIGHT
 	pass
 
 # ============================================================================
 # Panel Resize Functionality
 # ============================================================================
 
-func _process(_delta: float) -> void:
-	"""Handle resize dragging"""
+func _process(delta: float) -> void:
+	"""Handle resize dragging and connection indicator animation"""
 	if _is_resizing:
 		var mouse_pos = get_viewport().get_mouse_position()
 		var mouse_delta = mouse_pos.x - _resize_start_mouse_pos.x
@@ -659,7 +807,15 @@ func _process(_delta: float) -> void:
 		
 		# Update panel width
 		self.custom_minimum_size.x = new_width
-		pass
+	
+	# Animate the connecting indicator when visible
+	if ConnectingIndicator and ConnectingIndicator.is_visible():
+		_indicator_rotation += INDICATOR_ROTATION_SPEED * delta
+		if _indicator_rotation >= 360.0:
+			_indicator_rotation -= 360.0
+		ConnectingIndicator.rotation_degrees = _indicator_rotation
+	
+	pass
 
 func _on_resize_handle_input(event: InputEvent) -> void:
 	"""Handle mouse input on the resize handle"""
