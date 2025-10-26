@@ -1,41 +1,53 @@
-from typing import Union
+from typing import Literal
 
 from pydantic import BaseModel, Field
-from Arrow_AI_Backend.agent.states import Plan
 from langchain_core.prompts import ChatPromptTemplate
 from Arrow_AI_Backend.agent.models import llm
 
-class Response(BaseModel):
-    """Response to user."""
 
-    response: str
-
-
-class Act(BaseModel):
-    """Action to perform."""
-
-    action: Union[Response, Plan] = Field(
-        description="Action to perform. If you want to respond to user, use Response. "
-        "If you need to further use tools to get the answer, use Plan."
+class Decision(BaseModel):
+    """Decision after executing a step."""
+    
+    completed_count: int = Field(
+        description="How many tasks from the START of the remaining plan are completed (e.g., 0=none, 1=first task, 2=first two tasks, etc.)"
+    )
+    is_replan_needed: bool = Field(
+        default=False,
+        description="True if the plan needs to be rewritten"
+    )
+    replan_reason: str = Field(
+        default="",
+        description="Reason why replanning is needed (only if is_replan_needed=True)"
+    )
+    final_message: str = Field(
+        default="",
+        description="Final message to user when all tasks are complete (only when all remaining tasks are done)"
     )
 
 
-replanner_prompt = ChatPromptTemplate.from_template(
-    """For the given objective, come up with a simple step by step plan. \
-This plan should involve individual tasks, that if executed correctly will yield the correct answer. Do not add any superfluous steps. \
-The result of the final step should be the final answer. Make sure that each step has all the information needed - do not skip steps.
+decider_prompt = ChatPromptTemplate.from_template(
+    """Review the execution and decide how many tasks are complete.
 
-Your objective was this:
-{input}
+User's goal: {input}
 
-Your original plan was this:
-{plan}
+Remaining tasks: {plan}
 
-You have currently done the follow steps:
-{past_steps}
+Completed tasks so far: {completed_tasks}
 
-Update your plan accordingly. If no more steps are needed and you can return to the user, then respond with that. Otherwise, fill out the plan. Only add steps to the plan that still NEED to be done. Do not return previously done steps as part of the plan."""
+Last execution: {past_steps}
+
+Your job: Determine how many tasks from the START of the remaining plan are now complete.
+
+Examples:
+- If only the first task is done: completed_count=1
+- If the first 3 tasks are done: completed_count=3  
+- If no tasks are done yet: completed_count=0
+- If ALL remaining tasks are done: completed_count=<length of remaining plan>
+
+Also check if replanning is needed (only if the current plan is broken/invalid).
+
+When all remaining tasks are complete, provide a final_message summarizing what was accomplished."""
 )
 
 
-replanner = replanner_prompt | llm.with_structured_output(Act)
+decider = decider_prompt | llm.with_structured_output(Decision)
