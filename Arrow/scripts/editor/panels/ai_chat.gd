@@ -56,6 +56,51 @@ const ERROR_MESSAGE_COLOR = Color("ff0bb1")  # Red - from Settings.WARNING_COLOR
 const SYSTEM_MESSAGE_COLOR = Color.YELLOW  # From Settings.CAUTION_COLOR
 const ANONYMOUS_MESSAGE_COLOR = Color.GRAY
 
+# Function name to human-readable description mapping
+# Maps API function names to user-friendly descriptions
+# Supports both Project-Specification.md API and arrow_tools.py implementation
+const FUNCTION_DISPLAY_NAMES = {
+	# Create and insert nodes
+	"create_insert_node": "Creating a new node",
+	"quick_insert_node": "Adding a node",
+	"update_node": "Updating a node",
+	"remove_node": "Removing a node",
+	"delete_node": "Removing a node",
+	
+	# Update node properties and connections
+	"update_node_map": "Adding connections",
+	
+	# Scene operations
+	"create_new_scene": "Creating a new scene",
+	"create_scene": "Creating a new scene",
+	"update_scene": "Updating a scene",
+	"remove_scene": "Removing a scene",
+	"delete_scene": "Removing a scene",
+	
+	# Variables
+	"create_new_variable": "Creating a variable",
+	"create_variable": "Creating a variable",
+	"update_variable": "Updating a variable",
+	"remove_variable": "Removing a variable",
+	"delete_variable": "Removing a variable",
+	
+	# Characters
+	"create_new_character": "Creating a character",
+	"create_character": "Creating a character",
+	"update_character": "Updating a character",
+	"remove_character": "Removing a character",
+	"delete_character": "Removing a character",
+	
+	# Utility functions
+	"node_connection_replacement": "Replacing connections",
+	
+	# Entry points
+	"update_scene_entry": "Setting scene entry point",
+	"set_scene_entry": "Setting scene entry point",
+	"update_project_entry": "Setting project entry point",
+	"set_project_entry": "Setting project entry point",
+}
+
 # Message display properties
 const CHAT_MESSAGE_PROPERTIES = {
 	"size_flags_vertical": Control.SizeFlags.SIZE_EXPAND_FILL,
@@ -271,24 +316,16 @@ func append_function_call_block(function_name: String, arguments: Dictionary, re
 	icon_label.add_theme_font_size_override("font_size", 16)
 	header.add_child(icon_label)
 	
+	# Get human-readable function description from mapping
+	var display_text = FUNCTION_DISPLAY_NAMES.get(function_name, "Executing: " + function_name)
+	
 	var function_label = Label.new()
-	function_label.set_text("Calling: " + function_name)
+	function_label.set_text(display_text + "...")
 	function_label.add_theme_color_override("font_color", Color("FFA500"))  # Orange
 	function_label.add_theme_font_size_override("font_size", 14)
 	header.add_child(function_label)
 	
 	message_box.add_child(header)
-	
-	# Create arguments display (formatted JSON)
-	if arguments.size() > 0:
-		var args_label = Label.new()
-		var args_text = "Arguments: " + JSON.stringify(arguments, "  ")
-		args_label.set_text(args_text)
-		args_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-		args_label.add_theme_font_size_override("font_size", 12)
-		for property in CHAT_MESSAGE_PROPERTIES:
-			args_label.set(property, CHAT_MESSAGE_PROPERTIES[property])
-		message_box.add_child(args_label)
 	
 	# Add spacer
 	var spacer = Control.new()
