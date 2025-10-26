@@ -14,7 +14,8 @@ extends Control
 # UI Components
 @onready var ChatScroll = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Chat/Scroll
 @onready var ChatContainer = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Chat/Scroll/Messages
-@onready var InputField = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/Field
+@onready var InputContainer = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input
+@onready var InputField = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/FieldScroll/Field
 @onready var SendButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/Send
 @onready var ConnectionStatus = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Status
 @onready var ConnectButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Connect
@@ -36,6 +37,12 @@ var _resize_start_mouse_pos: Vector2
 var _resize_start_panel_width: float
 const MIN_PANEL_WIDTH: float = 250.0
 const MAX_PANEL_WIDTH: float = 800.0
+
+# Input field auto-resize
+const MIN_INPUT_HEIGHT: float = 40.0
+const MAX_INPUT_HEIGHT: float = 200.0
+const LINE_HEIGHT: float = 20.0
+var _previous_line_count: int = 1
 
 # Color constants
 const USER_MESSAGE_COLOR = Color("0fcbf4")  # Cyan - from Settings.PEACE_COLOR
@@ -65,7 +72,8 @@ func _register_connections() -> void:
 	StopButton.pressed.connect(self._on_stop_button_pressed, CONNECT_DEFERRED)
 	
 	# Input field connections
-	InputField.text_submitted.connect(self._on_input_text_submitted, CONNECT_DEFERRED)
+	InputField.text_changed.connect(self._on_input_text_changed, CONNECT_DEFERRED)
+	InputField.gui_input.connect(self._on_input_field_gui_input)
 	
 	# Resize handle connections
 	ResizeHandle.gui_input.connect(self._on_resize_handle_input)
@@ -154,7 +162,7 @@ func _update_ui_from_state() -> void:
 	StopButton.set_disabled(not is_busy or not controls_enabled)
 	
 	SendButton.set_disabled(not is_server_connected or is_busy or not controls_enabled)
-	InputField.set_editable(is_server_connected and not is_busy and controls_enabled)
+	InputField.editable = is_server_connected and not is_busy and controls_enabled
 	ClearButton.set_disabled(not controls_enabled)
 	
 	pass
@@ -431,20 +439,31 @@ func _on_send_button_pressed() -> void:
 	_send_message()
 	pass
 
-func _on_input_text_submitted(_text: String) -> void:
-	"""Handle Enter key in input field"""
-	_send_message()
+func _on_input_field_gui_input(event: InputEvent) -> void:
+	"""Handle keyboard shortcuts in input field"""
+	if event is InputEventKey and event.pressed:
+		# Ctrl+Enter or Shift+Enter to send message
+		if (event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER):
+			if event.ctrl_pressed or event.shift_pressed:
+				_send_message()
+				InputField.accept_event()  # Prevent default behavior
+	pass
+
+func _on_input_text_changed() -> void:
+	"""Handle text changes in input field to auto-resize"""
+	_auto_resize_input_field()
 	pass
 
 func _send_message() -> void:
 	"""Send user message to AI server"""
-	var message = InputField.get_text().strip_edges()
+	var message = InputField.text.strip_edges()
 	
 	if message.length() == 0:
 		return
 	
 	# Clear input field
-	InputField.set_text("")
+	InputField.text = ""
+	_reset_input_field_height()
 	
 	# Display user message
 	append_user_message(message)
@@ -661,6 +680,34 @@ func notify_project_closed() -> void:
 	"""Called by Mind when project is closed (switches to blank)"""
 	_update_ui_from_state()
 	# append_system_message("Project closed. Open a named project to use AI features.")
+	pass
+
+# ============================================================================
+# Input Field Auto-Resize Functionality
+# ============================================================================
+
+func _auto_resize_input_field() -> void:
+	"""Automatically resize input field based on content"""
+	var line_count = InputField.get_line_count()
+	
+	# Only resize if line count changed
+	if line_count != _previous_line_count:
+		_previous_line_count = line_count
+		
+		# Calculate new height based on line count
+		var new_height = LINE_HEIGHT * line_count + 10  # 10px padding
+		new_height = clamp(new_height, MIN_INPUT_HEIGHT, MAX_INPUT_HEIGHT)
+		
+		# Update input container height
+		InputContainer.custom_minimum_size.y = new_height
+		InputField.custom_minimum_size.y = new_height
+	pass
+
+func _reset_input_field_height() -> void:
+	"""Reset input field to minimum height"""
+	_previous_line_count = 1
+	InputContainer.custom_minimum_size.y = MIN_INPUT_HEIGHT
+	InputField.custom_minimum_size.y = MIN_INPUT_HEIGHT
 	pass
 
 # ============================================================================

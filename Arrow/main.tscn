@@ -2128,6 +2128,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+scroll_offset = Vector2(-354, 0)
 snapping_distance = 5
 right_disconnects = true
 zoom_min = 0.1
@@ -2163,8 +2164,7 @@ layout_mode = 2
 mouse_default_cursor_shape = 10
 
 [node name="AIChat" type="PanelContainer" parent="Editor/Centre_Wrapper"]
-visible = false
-custom_minimum_size = Vector2(350, 0)
+custom_minimum_size = Vector2(450, 0)
 layout_mode = 2
 size_flags_vertical = 3
 script = ExtResource("29_aichat")
@@ -2196,15 +2196,28 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 
 [node name="Input" type="HBoxContainer" parent="Editor/Centre_Wrapper/AIChat/Sections"]
+custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 
-[node name="Field" type="LineEdit" parent="Editor/Centre_Wrapper/AIChat/Sections/Input"]
+[node name="FieldScroll" type="ScrollContainer" parent="Editor/Centre_Wrapper/AIChat/Sections/Input"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Field" type="TextEdit" parent="Editor/Centre_Wrapper/AIChat/Sections/Input/FieldScroll"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 placeholder_text = "Type your message..."
+wrap_mode = 1
+scroll_fit_content_height = true
 
 [node name="Send" type="Button" parent="Editor/Centre_Wrapper/AIChat/Sections/Input"]
+custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
+size_flags_vertical = 4
 text = "Send"
 
 [node name="Toolbar" type="HBoxContainer" parent="Editor/Centre_Wrapper/AIChat/Sections"]
@@ -2359,7 +2372,7 @@ custom_minimum_size = Vector2(128, 24)
 layout_mode = 2
 tooltip_text = "Toggle AI Chat Panel (Ctrl + Shift + A)"
 toggle_mode = true
-text = "AI Agent"
+text = "Chat"
 icon = SubResource("AtlasTexture_gxh6s")
 expand_icon = true
 
