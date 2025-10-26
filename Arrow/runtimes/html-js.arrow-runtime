@@ -1909,11 +1909,9 @@ class Jump {
         
         this.proceed = function(){
             if (_ALLOW_AUTO_PLAY) {
-                if (this.node_map.hasOwnProperty("skip") && this.node_map.skip == true){
-                    this.skip_play();
-                } else {
-                    this.play_forward_the_jump();
-                }
+                // always auto-play (jump destination) even if skipped
+                // (skipped jumps are still functional, just visually hidden)
+                this.play_forward_the_jump();
             }
         };
         

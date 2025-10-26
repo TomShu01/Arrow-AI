@@ -845,7 +845,10 @@ class Mind :
 		elif scene_id == -2:
 			the_scene_node_list_to_lookup = _PROJECT.resources.nodes
 		else: # unset or -1
-			the_scene_node_list_to_lookup = _PROJECT.resources.scenes[_CURRENT_OPEN_SCENE_ID].map
+			if _CURRENT_OPEN_SCENE_ID >= 0 && _PROJECT.resources.scenes.has(_CURRENT_OPEN_SCENE_ID):
+				the_scene_node_list_to_lookup = _PROJECT.resources.scenes[_CURRENT_OPEN_SCENE_ID].map
+			else:
+				the_scene_node_list_to_lookup = {}
 		# now look up:
 		for node_id in the_scene_node_list_to_lookup:
 			if _PROJECT.resources.nodes.has(node_id):
@@ -945,7 +948,7 @@ class Mind :
 	func flat_branch_map(start_node_id: int, end_node_id: int, with_waterfall: bool = false, scene_id: int = _CURRENT_OPEN_SCENE_ID) -> Array:
 		var flat_map = []
 		var level = [start_node_id]
-		if _PROJECT.resources.scenes[scene_id].map.has(start_node_id):
+		if scene_id >= 0 && _PROJECT.resources.scenes.has(scene_id) && _PROJECT.resources.scenes[scene_id].map.has(start_node_id):
 			var start_map = _PROJECT.resources.scenes[scene_id].map[start_node_id]
 			if start_map.has("io") && start_map.io is Array && start_map.io.size() > 0:
 				for outgoing_link in start_map.io:
@@ -1032,11 +1035,12 @@ class Mind :
 	func jump_to_node(node_id:int, select:bool = false) -> void:
 		# (to the node's on-grid offset)
 		var the_scene_id = find_scene_owner_of_node(node_id)
-		var destination = _PROJECT.resources.scenes[the_scene_id].map[node_id].offset
-		go_to_grid_view(destination)
-		if select == true:
-			_SELECTED_NODES_IDS = [node_id]
-			Grid.call_deferred("select_node_by_id", node_id, true)
+		if the_scene_id >= 0 && _PROJECT.resources.scenes.has(the_scene_id) && _PROJECT.resources.scenes[the_scene_id].map.has(node_id):
+			var destination = _PROJECT.resources.scenes[the_scene_id].map[node_id].offset
+			go_to_grid_view(destination)
+			if select == true:
+				_SELECTED_NODES_IDS = [node_id]
+				Grid.call_deferred("select_node_by_id", node_id, true)
 		pass
 	
 	func go_to_grid_view(offset_or_state: Array = [0, 0, 1]) -> void:
@@ -1266,7 +1270,7 @@ class Mind :
 		if node_id >= 0 :
 			# this function is most of the times called to search in the open scene,
 			# so it's much faster to check the open scene first:
-			if _CURRENT_OPEN_SCENE_ID >= 0 && _PROJECT.resources.scenes[_CURRENT_OPEN_SCENE_ID].map.has(node_id):
+			if _CURRENT_OPEN_SCENE_ID >= 0 && _PROJECT.resources.scenes.has(_CURRENT_OPEN_SCENE_ID) && _PROJECT.resources.scenes[_CURRENT_OPEN_SCENE_ID].map.has(node_id):
 				the_owner_scene_id = _CURRENT_OPEN_SCENE_ID
 			# then we go for all the scenes
 			else:
@@ -1499,7 +1503,7 @@ class Mind :
 			# ... also update grid view of any node that uses this resource
 			if the_resource.has("use"):
 				for referrer_id in the_resource.use:
-					if _PROJECT.resources.scenes[_CURRENT_OPEN_SCENE_ID].map.has(referrer_id):
+					if _CURRENT_OPEN_SCENE_ID >= 0 && _PROJECT.resources.scenes.has(_CURRENT_OPEN_SCENE_ID) && _PROJECT.resources.scenes[_CURRENT_OPEN_SCENE_ID].map.has(referrer_id):
 						Grid.call_deferred("update_grid_node_box", referrer_id, _PROJECT.resources.nodes[referrer_id])
 			# print_debug("Update resource call: ", resource_uid, " = ", the_resource, " * ", modification, " = ", lookup_resource(resource_uid, field, false))
 		elif is_auto_update != true: # inspector may try to auto update a recently deleted node automatically
@@ -1686,7 +1690,7 @@ class Mind :
 	func update_node_map(node_id:int, modification:Dictionary, scene_id:int = -1) -> void:
 		if scene_id == -1:
 			scene_id = _CURRENT_OPEN_SCENE_ID
-		if _PROJECT.resources.scenes[scene_id].map.has(node_id) == false:
+		if scene_id < 0 || _PROJECT.resources.scenes.has(scene_id) == false || _PROJECT.resources.scenes[scene_id].map.has(node_id) == false:
 			scene_id = find_scene_owner_of_node(node_id)
 		if scene_id >= 0:
 			# because maps are dictionaries...

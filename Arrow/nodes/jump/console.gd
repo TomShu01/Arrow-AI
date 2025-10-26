@@ -91,12 +91,8 @@ func setup_play(
 func proceed_auto_play() -> void:
 	if Main.Mind.Console._ALLOW_AUTO_PLAY:
 		# always auto-play next node (i.e. the jump destination)
-		# unless it's a skipped jump, which means ...
-		if _NODE_MAP.has("skip") && _NODE_MAP.skip == true:
-			skip_play() # ... ending with status_code
-			# because jumps have no outgoing slot
-		else:
-			play_forward_the_jump()
+		# even if it's skipped (skipped jumps are still functional, just visually hidden)
+		play_forward_the_jump()
 	else:
 		set_view_unplayed()
 	pass
