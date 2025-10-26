@@ -208,14 +208,36 @@ func send_user_message(message: String, history: Array, selected_node_ids: Array
 	  }
 	}
 	"""
-	# Save project before sending (if Mind reference provided)
-	if mind and mind.ProMan and mind.ProMan.is_project_listed():
-		mind.save_project()
-		print("[AIWebSocket] Project saved before sending user message")
+	# Validate Mind reference before attempting save
+	if not mind:
+		printerr("[AIWebSocket] Cannot send user message: Mind reference not provided")
+		connection_error.emit("Cannot send message: Mind reference not available")
+		return
 	
-	# Read arrow content
+	if not mind.ProMan:
+		printerr("[AIWebSocket] Cannot send user message: ProMan not available")
+		connection_error.emit("Cannot send message: Project Manager not available")
+		return
+	
+	# Save project before sending (ensures disk state matches in-memory state)
+	if mind.ProMan.is_project_listed():
+		print("[AIWebSocket] Saving project before sending user message...")
+		mind.save_project()
+		print("[AIWebSocket] Project saved successfully (ID: ", current_project_id, ")")
+	else:
+		printerr("[AIWebSocket] Warning: Project not listed, skipping save")
+	
+	# Read arrow content from disk (after save)
 	var arrow_content = _read_arrow_content(mind)
 	
+	# Validate arrow content was successfully read
+	if arrow_content.is_empty() and mind.ProMan.is_project_listed():
+		printerr("[AIWebSocket] Warning: Arrow content is empty for listed project ID ", current_project_id)
+		printerr("[AIWebSocket] Message will be sent with empty arrow_content - server may not have full context")
+	elif not arrow_content.is_empty():
+		print("[AIWebSocket] Arrow content embedded (", arrow_content.length(), " bytes)")
+	
+	# Send message with embedded project content
 	send_message({
 		"type": "user_message",
 		"data": {
