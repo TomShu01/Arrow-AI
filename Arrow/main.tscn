@@ -2128,7 +2128,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-scroll_offset = Vector2(-354, 0)
+scroll_offset = Vector2(-454, 0)
 snapping_distance = 5
 right_disconnects = true
 zoom_min = 0.1
@@ -2164,7 +2164,6 @@ layout_mode = 2
 mouse_default_cursor_shape = 10
 
 [node name="AIChat" type="PanelContainer" parent="Editor/Centre_Wrapper"]
-visible = false
 custom_minimum_size = Vector2(450, 0)
 layout_mode = 2
 size_flags_vertical = 3
@@ -2227,6 +2226,12 @@ layout_mode = 2
 [node name="Status" type="Label" parent="Editor/Centre_Wrapper/AIChat/Sections/Toolbar"]
 layout_mode = 2
 text = "○ Disconnected"
+
+[node name="ConnectingIndicator" type="Label" parent="Editor/Centre_Wrapper/AIChat/Sections/Toolbar"]
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "⟳"
 
 [node name="Spacer" type="MarginContainer" parent="Editor/Centre_Wrapper/AIChat/Sections/Toolbar"]
 layout_mode = 2

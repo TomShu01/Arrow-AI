@@ -18,6 +18,7 @@ extends Control
 @onready var InputField = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/FieldScroll/Field
 @onready var SendButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Input/Send
 @onready var ConnectionStatus = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Status
+@onready var ConnectingIndicator = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/ConnectingIndicator
 @onready var ConnectButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Connect
 @onready var StopButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Stop
 @onready var ClearButton = $/root/Main/Editor/Centre_Wrapper/AIChat/Sections/Toolbar/Clear
@@ -43,6 +44,10 @@ const MIN_INPUT_HEIGHT: float = 40.0
 const MAX_INPUT_HEIGHT: float = 200.0
 const LINE_HEIGHT: float = 20.0
 var _previous_line_count: int = 1
+
+# Connection indicator rotation
+var _indicator_rotation: float = 0.0
+const INDICATOR_ROTATION_SPEED: float = 180.0  # degrees per second
 
 # Color constants
 const USER_MESSAGE_COLOR = Color("0fcbf4")  # Cyan - from Settings.PEACE_COLOR
@@ -131,6 +136,7 @@ func _initialize_panel() -> void:
 func _update_ui_from_state() -> void:
 	"""Update UI elements based on connection and AI state"""
 	var is_valid_project = _is_valid_project_open()
+	var connection_state = _get_connection_state()
 	var is_server_connected = _is_websocket_connected()
 	var ai_state = _get_ai_state()
 	var is_busy = (ai_state != null and ai_state != 0)  # Not IDLE
@@ -146,16 +152,32 @@ func _update_ui_from_state() -> void:
 	# Disable all interactive controls when no valid project
 	var controls_enabled = is_valid_project
 	
-	# Update connection status indicator
-	if is_server_connected:
+	# Update connection status indicator based on state
+	var is_connecting = (connection_state == 1)  # CONNECTING state
+	var is_error = (connection_state == 4)  # ERROR state
+	
+	if is_connecting:
+		ConnectionStatus.set_text("◌ Connecting...")
+		ConnectionStatus.add_theme_color_override("font_color", Color.YELLOW)
+		ConnectingIndicator.set_visible(true)
+	elif is_server_connected:
 		ConnectionStatus.set_text("● Connected")
 		ConnectionStatus.add_theme_color_override("font_color", Color.GREEN)
+		ConnectingIndicator.set_visible(false)
+	elif is_error:
+		ConnectionStatus.set_text("○ Connection Failed")
+		ConnectionStatus.add_theme_color_override("font_color", Color.RED)
+		ConnectingIndicator.set_visible(false)
 	else:
 		ConnectionStatus.set_text("○ Disconnected")
 		ConnectionStatus.add_theme_color_override("font_color", Color.GRAY)
+		ConnectingIndicator.set_visible(false)
 	
-	# Update button states (disabled if no valid project)
-	ConnectButton.set_disabled(is_server_connected or not controls_enabled)
+	# Update button states
+	# Connect button: disabled only when connecting or no valid project
+	# When connected, it becomes "Disconnect" and is enabled
+	# When disconnected or error, it says "Connect" and is enabled
+	ConnectButton.set_disabled(is_connecting or not controls_enabled)
 	ConnectButton.set_text("Disconnect" if is_server_connected else "Connect")
 	
 	StopButton.set_visible(is_busy and controls_enabled)
@@ -620,6 +642,13 @@ func _is_websocket_connected() -> bool:
 		return adapter.is_server_connected()
 	return false
 
+func _get_connection_state():
+	"""Get current connection state from adapter"""
+	if Main.has_node("AIWebSocketAdapter"):
+		var adapter = Main.get_node("AIWebSocketAdapter")
+		return adapter.connection_state
+	return 0  # DISCONNECTED
+
 func _get_ai_state():
 	"""Get current AI state"""
 	if Main.has_node("AIStateManager"):
@@ -718,8 +747,8 @@ func _reset_input_field_height() -> void:
 # Panel Resize Functionality
 # ============================================================================
 
-func _process(_delta: float) -> void:
-	"""Handle resize dragging"""
+func _process(delta: float) -> void:
+	"""Handle resize dragging and connection indicator animation"""
 	if _is_resizing:
 		var mouse_pos = get_viewport().get_mouse_position()
 		var mouse_delta = mouse_pos.x - _resize_start_mouse_pos.x
@@ -730,7 +759,15 @@ func _process(_delta: float) -> void:
 		
 		# Update panel width
 		self.custom_minimum_size.x = new_width
-		pass
+	
+	# Animate the connecting indicator when visible
+	if ConnectingIndicator and ConnectingIndicator.is_visible():
+		_indicator_rotation += INDICATOR_ROTATION_SPEED * delta
+		if _indicator_rotation >= 360.0:
+			_indicator_rotation -= 360.0
+		ConnectingIndicator.rotation_degrees = _indicator_rotation
+	
+	pass
 
 func _on_resize_handle_input(event: InputEvent) -> void:
 	"""Handle mouse input on the resize handle"""
