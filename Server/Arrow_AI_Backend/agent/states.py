@@ -30,3 +30,4 @@ class PlanExecute(TypedDict):
     pending_request_id: Optional[str]  # ID of function call waiting for result
     function_result: Optional[Dict[str, Any]]  # Result from client
     current_scene_id: Optional[int]  # Current scene context
+    arrow_file: Optional[str]  # Current arrow file data as JSON string

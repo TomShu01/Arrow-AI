@@ -78,10 +78,11 @@ async def execute_step(state: PlanExecute):
     
     plan = state["plan"]
     
-    # Set context for tools (session_id and scene_id)
+    # Set context for tools (session_id, scene_id, and arrow_file)
     set_context(
         session_id=state["session_id"],
-        scene_id=state.get("current_scene_id")
+        scene_id=state.get("current_scene_id"),
+        arrow_file=state.get("arrow_file")
     )
     
     # Create execution prompt with the full plan context

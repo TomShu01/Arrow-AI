@@ -18,10 +18,21 @@ current_context: Dict[str, Any] = {}
 pending_calls: Dict[str, asyncio.Future] = {}
 
 
-def set_context(session_id: str, scene_id: int = None):
+def set_context(session_id: str, scene_id: int = None, arrow_file: str = None):
     """Set the current execution context for tools"""
     current_context["session_id"] = session_id
     current_context["scene_id"] = scene_id
+    current_context["arrow_file"] = arrow_file
+
+
+def get_arrow_file() -> str:
+    """Get the current arrow file from context as JSON string"""
+    return current_context.get("arrow_file", "")
+
+
+def get_context_value(key: str) -> Any:
+    """Get a specific value from the current context"""
+    return current_context.get(key)
 
 
 def set_function_result(request_id: str, success: bool, result: Any = None, error: str = None):

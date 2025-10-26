@@ -83,7 +83,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             "replan_reason": "",
                             "pending_request_id": None,
                             "function_result": None,
-                            "current_scene_id": msg.current_scene_id
+                            "current_scene_id": msg.current_scene_id,
+                            "arrow_file": session_state[session_id].get("arrow_content")
                         }
                         
                         # Invoke supervisor agent
@@ -123,10 +124,18 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Update session state with the latest arrow content
                 session_state[session_id]["arrow_content"] = msg.arrow_content
                 
+                # Update the arrow file context for tools
+                from Arrow_AI_Backend.agent.tools.arrow_tools import set_function_result, set_context
+                
+                # Update context with new arrow file content
+                set_context(
+                    session_id=session_id,
+                    scene_id=session_state[session_id].get("current_scene_id"),
+                    arrow_file=msg.arrow_content
+                )
+                
                 # Resolve the pending Future for this function call
                 # This allows the tool to continue execution
-                from Arrow_AI_Backend.agent.tools.arrow_tools import set_function_result
-                
                 set_function_result(
                     request_id=msg.request_id,
                     success=msg.success,
