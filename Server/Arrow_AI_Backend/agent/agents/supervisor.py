@@ -37,10 +37,14 @@ async def notify_user(state: PlanExecute):
 # ========== Step 3: Create Plan ==========
 async def plan_step(state: PlanExecute):
     """Create plan for complex queries, or simple single-task plan for simple queries"""
+    # Build context with selected nodes if available
+    selected_nodes = state.get("selected_node_ids", [])
+    selected_context = f"\n\nSELECTED NODES: {selected_nodes}" if selected_nodes else ""
+    
     # Check if we're replanning
     if state.get("replan_reason"):
         # Replanning requested by decider
-        replan_context = f"{state['input']}\n\nReplanning because: {state['replan_reason']}\n\nCompleted steps: {state.get('past_steps', [])}"
+        replan_context = f"{state['input']}{selected_context}\n\nReplanning because: {state['replan_reason']}\n\nCompleted steps: {state.get('past_steps', [])}"
         plan = await planner.ainvoke({"messages": [("user", replan_context)]})
         steps = plan.steps
         
@@ -54,7 +58,7 @@ async def plan_step(state: PlanExecute):
     
     elif state["complexity"] == "COMPLEX":
         # Initial planning for complex queries
-        plan = await planner.ainvoke({"messages": [("user", state["input"])]})
+        plan = await planner.ainvoke({"messages": [("user", f"{state['input']}{selected_context}")]})
         steps = plan.steps
         
         # Send plan to user
@@ -88,9 +92,13 @@ async def execute_step(state: PlanExecute):
     # The executor agent has its own internal loop and will work through them
     plan_text = "\n".join(f"{i+1}. {step}" for i, step in enumerate(plan))
     
+    # Add selected nodes context if available
+    selected_nodes = state.get("selected_node_ids", [])
+    selected_context = f"\n\nSELECTED NODES: {selected_nodes}" if selected_nodes else ""
+    
     execution_prompt = f"""Complete the following plan step-by-step:
 
-{plan_text}
+{plan_text}{selected_context}
 
 IMPORTANT: Work through these steps IN ORDER. After completing each step with a tool, verify the result before moving to the next step. Do not skip steps or execute them out of order."""
     

@@ -893,6 +893,10 @@ class Mind :
 			printerr("Unexpected Behavior! The field = %s is not found in the dataset." % field)
 		return {}
 	
+	# Get the currently selected node IDs
+	func get_selected_nodes() -> Array:
+		return _SELECTED_NODES_IDS.duplicate()
+	
 	# tells you if a node is selected
 	# and can also manage selection if a boolean is also passed (true = select, false = unselect)
 	func track_nodes_selection(node_id:int, select_or_unselect = null, ignore_error:bool = false) -> bool:

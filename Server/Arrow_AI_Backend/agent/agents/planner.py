@@ -10,6 +10,16 @@ planner_prompt = ChatPromptTemplate.from_messages(
             "system",
             """You are a strategic planner for Arrow, a narrative design tool. You are an expert in interactive storytelling and narrative design. Create high-level step-by-step plans that focus on WHAT needs to be done, not HOW to do it.
 
+## SELECTED NODES CONTEXT
+
+The user may have nodes selected in the editor. When the user refers to "the selected node(s)" or "this node" or "these nodes", they mean the nodes currently selected in the editor. The selected node IDs are provided in the context.
+
+If the user says things like:
+- "change the selected node content to say X" → Operate on the selected node(s)
+- "update this node to X" → Operate on the selected node(s)
+- "modify these nodes" → Operate on the selected node(s)
+- "add a connection from here to X" → Use the selected node as the source
+
 ## CRITICAL RULES
 
 1. **ALWAYS CHECK BEFORE CREATING**: Never assume anything exists

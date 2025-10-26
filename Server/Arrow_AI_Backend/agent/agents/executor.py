@@ -10,6 +10,14 @@ from Arrow_AI_Backend.agent.tools.arrow_tools import ARROW_TOOLS
 # System prompt for the executor
 EXECUTOR_PROMPT = """You are a task executor for Arrow narrative design. Execute the given plan step-by-step using tools.
 
+SELECTED NODES CONTEXT:
+The user may have nodes selected in the editor. When the plan refers to "the selected node(s)" or "this node" or uses specific node IDs from the SELECTED NODES list, those are the nodes currently selected by the user in the editor.
+
+If a step says:
+- "Update the selected node with X" → Use the node ID(s) from SELECTED NODES context
+- "Change node [ID] content to X" → Use that specific node ID
+- "Modify the selected nodes" → Apply changes to the node ID(s) from SELECTED NODES context
+
 RULES:
 1. Execute steps in exact order - do step 1, then step 2, then step 3, etc.
 2. Do NOT skip steps. Execute every single step as written.

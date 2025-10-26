@@ -101,7 +101,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             "pending_request_id": None,
                             "function_result": None,
                             "current_scene_id": msg.current_scene_id,
-                            "arrow_file": session_state[session_id].get("arrow_content")
+                            "arrow_file": session_state[session_id].get("arrow_content"),
+                            "selected_node_ids": msg.selected_node_ids
                         }
                         
                         # Invoke supervisor agent
