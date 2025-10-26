@@ -8,8 +8,6 @@
 
 extends Control
 
-signal request_mind()
-
 @onready var TheTree = get_tree()
 @onready var Main = TheTree.get_root().get_child(0)
 
@@ -266,8 +264,14 @@ func _on_clear_button_pressed() -> void:
 
 func _on_close_button_pressed() -> void:
 	"""Handle close button click"""
-	# Request Mind to toggle the panel (UI manager will handle hiding both panel and resize handle)
-	self.request_mind.emit("toggle_ai_chat_panel")
+	# Hide the panel using the UI manager (will also hide resize handle)
+	if Main.has_node("UI") or Main.has_method("get"):
+		Main.UI.set_panel_visibility("ai_chat", false)
+	else:
+		# Fallback: directly hide the panel
+		var ai_panel = Main.get_node("/root/Main/Editor/Centre_Wrapper/AIChat")
+		if ai_panel:
+			ai_panel.set_visible(false)
 	pass
 
 func _on_connect_button_pressed() -> void:
@@ -398,11 +402,6 @@ func _sync_project_file() -> void:
 				var adapter = Main.get_node("AIWebSocketAdapter")
 				adapter.send_file_sync(project_id, project_content)
 				print("[AIChat] Project file synced to server")
-	pass
-
-func _request_mind(req: String, args = null) -> void:
-	"""Relay request to Mind"""
-	self.request_mind.emit(req, args)
 	pass
 
 # ============================================================================

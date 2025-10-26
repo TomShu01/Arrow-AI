@@ -443,7 +443,7 @@ layout_mode = 2
 
 [node name="Label" type="Label" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketHost"]
 layout_mode = 2
-text = "WebSocket Host"
+text = "Host"
 
 [node name="Value" type="LineEdit" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketHost"]
 layout_mode = 2
@@ -456,7 +456,7 @@ layout_mode = 2
 
 [node name="Label" type="Label" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketPort"]
 layout_mode = 2
-text = "WebSocket Port"
+text = "Port"
 
 [node name="Value" type="SpinBox" parent="Overlays/Control/Preferences/Margin/Sections/Configs/Scroll/Params/AIAgent/Selector/WebSocketPort"]
 layout_mode = 2
