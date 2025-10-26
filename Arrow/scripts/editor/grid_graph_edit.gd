@@ -524,9 +524,10 @@ func _on_connection_request(from_name:String, from_slot:int, to_name:String, to_
 	pass
 
 func disconnect_from_view_by_id(from_id:int, from_slot:int, to_id:int, to_slot:int) -> void:
-	var from_name = _DRAWN_NODES_BY_ID[ from_id ].name
-	var to_name = _DRAWN_NODES_BY_ID[ to_id ].name
-	disconnect_node(from_name, from_slot, to_name, to_slot)
+	if _DRAWN_NODES_BY_ID.has(from_id) && _DRAWN_NODES_BY_ID.has(to_id):
+		var from_name = _DRAWN_NODES_BY_ID[ from_id ].name
+		var to_name = _DRAWN_NODES_BY_ID[ to_id ].name
+		disconnect_node(from_name, from_slot, to_name, to_slot)
 	drop_relationship(from_id, from_slot, to_id, to_slot)
 	pass
 
