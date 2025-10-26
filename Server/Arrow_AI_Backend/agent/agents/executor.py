@@ -22,7 +22,9 @@ CRITICAL - CONNECTIONS ARE MANDATORY:
 7. Track node IDs carefully - you need them to create connections.
 8. If a step involves creating content, always verify it has connections (both FROM and TO).
 9. A node without connections won't work in the story - it will be orphaned.
-10. When connecting nodes, make sure you connect the right output/input ports.
+10. When connecting nodes, use the `create_connection` tool with from_node_id and to_node_id.
+11. For hub nodes with multiple choices, connect each output slot (0, 1, 2, etc.) to different nodes.
+12. For condition nodes, slot 0 = true branch, slot 1 = false branch.
 
 When done, summarize what you accomplished and verify all nodes are properly connected."""
 

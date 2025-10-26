@@ -1699,6 +1699,8 @@ class Mind :
 							Grid.call_deferred("set_node_skip", node_id, modification.skip)
 					"io":
 						if modification.io is Dictionary:
+							var connections_to_draw = []
+							var connections_to_erase = []
 							for job in modification.io:
 								match job:  # io jobs are arrays of connection-arrays, such as:
 									"push": #  io: { push: [ [f, f_slot, t, t_slot], ... ] ,...
@@ -1708,11 +1710,13 @@ class Mind :
 											for connection in modification.io.push:
 												if connection is Array:
 													original_map.io.push_back(connection)
+													connections_to_draw.append(connection)
 									"pop": # ... pop: [ [<connection>],...] } 
 										if modification.io.pop is Array && original_map.has("io") && original_map.io is Array:
 											for connection in  modification.io.pop:
 												if connection is Array:
 													original_map.io.erase(connection)
+													connections_to_erase.append(connection)
 										else:
 											print_stack()
 											printerr(
@@ -1721,6 +1725,14 @@ class Mind :
 													"where there is no io at all!"
 												) % node_id
 											)
+							# Draw new connections on the grid
+							if connections_to_draw.size() > 0:
+								Grid.call_deferred("draw_connections_batch", connections_to_draw)
+							# Erase removed connections from the grid
+							if connections_to_erase.size() > 0:
+								for connection in connections_to_erase:
+									if connection.size() == 4:
+										Grid.call_deferred("disconnect_from_view_by_id", connection[0], connection[1], connection[2], connection[3])
 					"offset":
 						var new_offset = null
 						if modification.offset is Array && modification.offset.size() == 2:

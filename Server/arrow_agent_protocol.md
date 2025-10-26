@@ -323,6 +323,8 @@ Or if it cannot be removed:
 
 **Arrow Background:** Nodes connect via output slots (on the right) to input slots (on the left). Some nodes have multiple output slots (like hub for branching, condition for true/false paths). Connections form a directed graph representing narrative flow. Connections are stored in the scene map as arrays: `[from_id, from_slot, to_id, to_slot]`.
 
+**CRITICAL:** Connections are both saved to the data AND drawn on the visual graph editor. Without creating connections, nodes are orphaned and won't execute in the narrative.
+
 **Original Arrow Function:**
 
 ```gdscript
@@ -330,15 +332,14 @@ func update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1)
 // with modification = { "io": { "push": [[from_id, from_slot, to_id, to_slot]] } }
 ```
 
-**Simplified Arguments:**
+**Tool Arguments:**
 
 ```json
 {
-  "from": 12, // or "last_created" or "selected"
-  "from_slot": 0,
-
-  "to": 15, // or "next_created" or target node id
-  "to_slot": 0
+  "from_node_id": 12,
+  "to_node_id": 15,
+  "from_slot": 0,  // optional, defaults to 0
+  "to_slot": 0     // optional, defaults to 0
 }
 ```
 
@@ -350,11 +351,13 @@ func update_node_map(node_id: int, modification: Dictionary, scene_id: int = -1)
 }
 ```
 
-**Simplifications:**
+**Usage Notes:**
 
-- Direct connection specification without wrapping in `update_node_map`
-- Special keywords for node references
-- Most connections use slot 0, so this can be defaulted
+- Most connections use slot 0 for both sides
+- Hub nodes have multiple output slots (one per choice)
+- Condition nodes have 2 output slots (0=true, 1=false)
+- Always create connections after creating nodes to ensure they're part of the story flow
+- The tool internally calls `update_node_map` with the proper `io.push` structure
 
 ---
 

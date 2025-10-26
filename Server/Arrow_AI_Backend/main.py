@@ -52,7 +52,15 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # ========== Handle User Message ==========
             if message_type == "user_message":
-                msg = UserMessage(**raw)
+                try:
+                    msg = UserMessage(**raw)
+                except Exception as e:
+                    print(f"[{session_id}] Error parsing user_message: {e}")
+                    await manager.send(session_id, {
+                        "type": "chat_response",
+                        "message": f"Error parsing message: {str(e)}"
+                    })
+                    continue
                 
                 # Update session context with arrow content and metadata
                 session_state[session_id]["arrow_content"] = msg.arrow_content
@@ -118,7 +126,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # ========== Handle Function Result ==========
             elif message_type == "function_result":
-                msg = FunctionResultMessage(**raw)
+                try:
+                    msg = FunctionResultMessage(**raw)
+                except Exception as e:
+                    print(f"[{session_id}] Error parsing function_result: {e}")
+                    continue
+                
                 print(f"[{session_id}] Function result for {msg.request_id}: success={msg.success}")
                 
                 # Update session state with the latest arrow content
@@ -150,8 +163,18 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # ========== Handle Stop Signal ==========
             elif message_type == "stop":
-                msg = StopMessage(**raw)
+                try:
+                    msg = StopMessage(**raw)
+                except Exception as e:
+                    print(f"[{session_id}] Error parsing stop message: {e}")
+                    continue
+                
                 print(f"[{session_id}] Stop signal received")
+                
+                # Cancel running agent if any
+                if session_id in running_agents:
+                    running_agents[session_id].cancel()
+                    running_agents.pop(session_id, None)
 
             # ========== Unknown Message Type ==========
             else:
@@ -160,6 +183,19 @@ async def websocket_endpoint(websocket: WebSocket):
     except (WebSocketDisconnect, RuntimeError) as e:
         # Handle both clean disconnects and connection errors
         print(f"[{session_id}] WebSocket disconnected: {e}")
+        
+        # Cancel running agent if any
+        if session_id in running_agents:
+            running_agents[session_id].cancel()
+            running_agents.pop(session_id, None)
+        
+        manager.disconnect(session_id)
+        session_state.pop(session_id, None)
+    except Exception as e:
+        # Handle all other errors (including Pydantic validation errors)
+        print(f"[{session_id}] Error in websocket handler: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         
         # Cancel running agent if any
         if session_id in running_agents:

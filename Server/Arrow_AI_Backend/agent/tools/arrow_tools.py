@@ -316,13 +316,26 @@ async def create_connection(
     to_slot: int = 0
 ) -> str:
     """
-    Create a connection between two nodes.
+    Create a connection between two nodes to establish narrative flow.
+    
+    CRITICAL: All nodes must be connected to work in the story. A node without 
+    connections is orphaned and will never execute.
     
     Args:
-        from_node_id: ID of the source node
-        to_node_id: ID of the target node
+        from_node_id: ID of the source node (where the connection starts)
+        to_node_id: ID of the target node (where the connection goes to)
         from_slot: Output slot index on source node (default: 0)
-        to_slot: Input slot index on target node (default: 0)
+                   - For most nodes, use 0
+                   - For hub nodes: 0 = first choice, 1 = second choice, etc.
+                   - For condition nodes: 0 = true branch, 1 = false branch
+        to_slot: Input slot index on target node (default: 0, rarely changed)
+    
+    Returns:
+        Success message confirming the connection was created and drawn on the graph.
+    
+    Example:
+        create_connection(from_node_id=2, to_node_id=4)  # Simple connection
+        create_connection(from_node_id=5, to_node_id=6, from_slot=1)  # Hub choice 2
     """
     # Use update_node_map to add connection
     return await send_function_call("update_node_map", {
@@ -344,13 +357,20 @@ async def delete_connection(
     to_slot: int = 0
 ) -> str:
     """
-    Delete a connection between two nodes.
+    Remove a connection between two nodes.
+    
+    WARNING: Deleting a connection may orphan a node, making it unreachable 
+    in the narrative flow.
     
     Args:
-        from_node_id: ID of the source node
-        to_node_id: ID of the target node
+        from_node_id: ID of the source node (where the connection starts)
+        to_node_id: ID of the target node (where the connection goes to)
         from_slot: Output slot index on source node (default: 0)
         to_slot: Input slot index on target node (default: 0)
+    
+    Returns:
+        Success message confirming the connection was removed from both 
+        the data and the visual graph.
     """
     return await send_function_call("update_node_map", {
         "node_id": from_node_id,
