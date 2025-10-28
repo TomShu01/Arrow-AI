@@ -388,20 +388,16 @@ func handle_server_message(message_type: String, data: Dictionary) -> void:
 	SERVER → CLIENT MESSAGE TYPES:
 	
 	1. connected: Initial handshake confirmation from server
-	   { "type": "connected", "data": { "sessionId": string, "serverTime": int } }
+	   { "type": "connected", "sessionId": string, "serverTime": int }
 	
 	2. text_chunk: Streaming AI response text for chat display
-	   { "type": "text_chunk", "data": { "text": string } }
+	   { "type": "text_chunk", "text": string }
 	
 	3. chat_response: Complete AI chat response
-	   { "type": "chat_response", "data": { "message": string } }
+	   { "type": "chat_response", "message": string }
 	
 	4. function_call: Command to execute via AI Command Dispatcher
-	   { "type": "function_call", "data": { 
-	       "request_id": string, 
-	       "function_name": string,
-	       "args": dict 
-	   }}
+	   { "type": "function_call", "request_id": string, "function": string, "arguments": dict }
 	   
 	   Supported function_name values:
 	   - create_insert_node, quick_insert_node, update_node, remove_node
