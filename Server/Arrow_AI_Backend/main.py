@@ -39,10 +39,8 @@ async def websocket_endpoint(websocket: WebSocket):
     # Send connected message
     await manager.send(session_id, {
         "type": "connected",
-        "data": {
-            "sessionId": session_id,
-            "serverTime": int(asyncio.get_event_loop().time() * 1000)
-        }
+        "sessionId": session_id,
+        "serverTime": int(asyncio.get_event_loop().time() * 1000)
     })
 
     try:
