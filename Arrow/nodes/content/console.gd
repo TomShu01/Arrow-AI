@@ -67,7 +67,12 @@ func remap_connections_for_slots(map:Dictionary = _NODE_MAP, this_node_id:int = 
 		for connection in map.io:
 			# <connection>[ from_id, from_slot, to_id, to_slot ]
 			if connection.size() >= 4 && connection[0] == this_node_id:
-				_NODE_SLOTS_MAP[ connection[1] ] = { "id": connection[2], "slot": connection[3] }
+				# CRITICAL FIX: Convert slot numbers to int to prevent JSON float type mismatch
+				# JSON numbers are parsed as floats, but slot_idx in play_forward_from is int
+				var from_slot = int(connection[1])
+				var to_id = int(connection[2])
+				var to_slot = int(connection[3])
+				_NODE_SLOTS_MAP[from_slot] = { "id": to_id, "slot": to_slot }
 	pass
 
 func string_data_or_default(parameter:String) -> String:

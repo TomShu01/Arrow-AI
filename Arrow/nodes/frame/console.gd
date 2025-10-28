@@ -56,7 +56,8 @@ func remap_connections_for_slots(map:Dictionary = _NODE_MAP, this_node_id:int = 
 		for connection in map.io:
 			# <connection>[ from_id, from_slot, to_id, to_slot ]
 			if connection.size() >= 4 && connection[0] == this_node_id:
-				_NODE_SLOTS_MAP[ connection[1] ] = { "id": connection[2], "slot": connection[3] }
+				# Convert to int to prevent JSON float type mismatch
+				_NODE_SLOTS_MAP[ int(connection[1]) ] = { "id": int(connection[2]), "slot": int(connection[3]) }
 	pass
 
 func setup_view() -> void:

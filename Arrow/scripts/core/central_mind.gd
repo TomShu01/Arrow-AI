@@ -1683,6 +1683,21 @@ class Mind :
 				unsafe_to_move.append(uid)
 		return unsafe_to_move
 	
+	# Updates node map properties (position, connections, skip state)
+	# 
+	# IMPORTANT: This function modifies the project data directly. When connections (io) are modified,
+	# it also clears the console if it's actively playing to prevent stale state issues.
+	#
+	# WHY CONSOLE CLEARING IS NEEDED:
+	# Console nodes are instantiated with duplicated node_maps (see console.gd:467), which includes
+	# connection data. They build internal _NODE_SLOTS_MAP from this duplicated data. When connections
+	# are added/removed after instantiation, these console nodes still have their old cached maps and
+	# won't see the new connections. Clearing forces re-instantiation with fresh data on next play.
+	#
+	# This ensures that:
+	# - Manual connection edits via Grid UI are reflected in console
+	# - AI-generated connections are immediately usable in console
+	# - Export and restart behaviors are consistent with live console playback
 	func update_node_map(node_id:int, modification:Dictionary, scene_id:int = -1) -> void:
 		if scene_id == -1:
 			scene_id = _CURRENT_OPEN_SCENE_ID
@@ -1705,6 +1720,7 @@ class Mind :
 						if modification.io is Dictionary:
 							var connections_to_draw = []
 							var connections_to_erase = []
+							var connections_modified = false
 							for job in modification.io:
 								match job:  # io jobs are arrays of connection-arrays, such as:
 									"push": #  io: { push: [ [f, f_slot, t, t_slot], ... ] ,...
@@ -1715,12 +1731,14 @@ class Mind :
 												if connection is Array:
 													original_map.io.push_back(connection)
 													connections_to_draw.append(connection)
+													connections_modified = true
 									"pop": # ... pop: [ [<connection>],...] } 
 										if modification.io.pop is Array && original_map.has("io") && original_map.io is Array:
 											for connection in  modification.io.pop:
 												if connection is Array:
 													original_map.io.erase(connection)
 													connections_to_erase.append(connection)
+													connections_modified = true
 										else:
 											print_stack()
 											printerr(
@@ -1729,6 +1747,19 @@ class Mind :
 													"where there is no io at all!"
 												) % node_id
 											)
+							# CRITICAL FIX: Clear console when connections are modified to prevent stale state
+							# Console nodes cache duplicated node_maps with connection info (_NODE_SLOTS_MAP)
+							# When connections are added/removed, already-instantiated console nodes won't see the changes
+							# Clearing forces the console to re-instantiate with fresh data on next play
+							if connections_modified:
+								# Defensive checks: Ensure Console exists and is valid before accessing
+								if is_instance_valid(Console) && "_NODES_IN_TERMINAL" in Console:
+									if Console._NODES_IN_TERMINAL.size() > 0:
+										print_debug(
+											"[CentralMind] Connections modified for node %s while console is active. " % node_id +
+											"Clearing console to prevent stale state (node will use fresh connections on next play)."
+										)
+										Console.call_deferred("clear_console")
 							if connections_to_draw.size() > 0:
 								for connection in connections_to_draw:
 									Grid.queue_drawing_connection(connection)

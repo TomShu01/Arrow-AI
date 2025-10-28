@@ -177,9 +177,9 @@ func send_file_sync(project_id: int, arrow_content: String, timestamp: int = -1)
 	{
 	  "type": "file_sync",
 	  "data": {
-	    "project_id": int,
-	    "arrow_content": string (JSON string of .arrow file),
-	    "timestamp": int (unix timestamp)
+		"project_id": int,
+		"arrow_content": string (JSON string of .arrow file),
+		"timestamp": int (unix timestamp)
 	  }
 	}
 	"""
